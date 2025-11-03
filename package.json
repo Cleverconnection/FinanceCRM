@@ -7,8 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+
+    "commit": "git add . && git commit -m \"update\" && git push origin main",
+
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "npm run commit && gh-pages -d dist"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.25.1",

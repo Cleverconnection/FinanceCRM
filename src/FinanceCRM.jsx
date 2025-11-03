@@ -51,7 +51,7 @@ async function getGraphClient() {
 // ======== PERFIL DO USUÁRIO MICROSOFT ========
 async function getUserProfile(graphClient) {
   const profile = await graphClient.api('/me').get();
-  console.log('👤 Usuário logado:', profile.displayName, profile.mail || profile.userPrincipalName);
+  console.log('👤 allysono logado:', profile.displayName, profile.mail || profile.userPrincipalName);
   return {
     name: profile.displayName,
     email: profile.mail || profile.userPrincipalName,
