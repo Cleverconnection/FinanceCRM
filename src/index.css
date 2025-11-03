@@ -1,8 +1,7 @@
-
 :root {
   --bg: #0f1115;
   --bg-card: #1a1d24;
-  --text: #e8eaf2;
+  --text: #f2e8f0;
   --muted: #b8c1d1;
   --border: #2a2f3a;
   --primary: #3b82f6;
@@ -52,7 +51,7 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
-  height: 60px;                    /* altura controlada */
+  height: 60px;
 }
 .header-title {
   font-family: "Inter", "Poppins", "Segoe UI", sans-serif;
@@ -100,7 +99,11 @@ body {
 
 .table-wrapper { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th, td { padding: 10px 12px; font-size: 0.92rem; }
+th {
+  text-transform: uppercase;
+}
+
+th, td { padding: 10px 12px; font-size: 0.82rem; }
 thead th { text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); }
 tbody tr { border-bottom: 1px solid var(--border); }
 tbody tr:hover { background: rgba(255,255,255,0.03); }
@@ -109,12 +112,11 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   font-size: 0.76rem; font-weight: 700; letter-spacing: 0.2px;
   border: 1px solid transparent;
 }
-.badge.pago { color: #34d399; background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.25); }
+.badge.pago { color: rgb(7, 206, 7); background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.25); }
 .badge.pendente { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25); }
 .badge.atrasado { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.25); }
 
 .footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 30px 0; }
-
 
 .filter-group {
   display: flex;
@@ -149,4 +151,232 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 
 /* modo compacto */
 .compact .card { padding: 10px; }
+
+/* Ajustes para o modo mobile */
+@media (max-width: 768px) {
+  /* Ajuste de layout do header */
+  .header {
+    padding: 20px 15px;
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.15), transparent 40%);
+  }
+
+  .header-title {
+    font-size: 1.5rem; /* Tamanho da fonte reduzido no header */
+    text-align: center;
+  }
+
+  .theme-btn {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
+
+  /* Ajustes no container dos gráficos */
+  .graph-container {
+    padding: 12px;
+  }
+
+  /* Ajustando os gráficos para telas menores */
+  .graph-content div {
+    height: 100px; /* Menor altura para gráficos em mobile */
+  }
+
+  .graph-container h3 {
+    font-size: 1.2rem; /* Reduz o tamanho do título dos gráficos */
+    text-align: center;
+  }
+
+  /* Ajuste das tabelas e fontes */
+  .table-wrapper {
+    overflow-x: scroll; /* Habilita rolagem horizontal na tabela */
+  }
+
+  table {
+    width: 100%;
+    font-size: 0.75rem; /* Fonte reduzida para melhor leitura em mobile */
+  }
+
+  th, td {
+    padding: 8px;
+  }
+
+  th {
+    text-align: left;
+    font-size: 0.85rem; /* Tamanho da fonte do cabeçalho ajustado */
+  }
+
+  /* Ajuste das células da tabela */
+  td {
+    font-size: 0.75rem; /* Tamanho da fonte das células reduzido */
+    padding: 6px 8px; /* Reduz o padding nas células */
+  }
+
+  /* Badge (status) */
+  .badge {
+    font-size: 0.7rem; /* Reduz o tamanho do texto no badge */
+    padding: 4px 8px; /* Reduz o padding do badge */
+  }
+
+  /* Ajustes no layout dos filtros */
+  .filters {
+    grid-template-columns: 1fr; /* Coloca todos os filtros em uma coluna */
+    gap: 12px;
+  }
+
+  .filter-group {
+    width: 100%; /* Ajusta a largura dos filtros para ocupar toda a largura disponível */
+  }
+
+  /* Ajuste no filtro de pesquisa */
+  .input, .select {
+    width: 100%; /* Aumenta a largura dos campos para preencher a tela */
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+
+  /* Cards */
+  .card {
+    padding: 12px; /* Reduz o padding nos cards para dispositivos móveis */
+  }
+
+  /* Ajuste no footer */
+  .footer {
+    padding: 20px 0;
+    font-size: 0.75rem; /* Reduz o tamanho da fonte no footer */
+  }
+
+  /* Modificação do grid */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Coloca tudo em uma coluna no mobile */
+    gap: 16px;
+  }
+
+  .grid-3 {
+    grid-template-columns: 1fr; /* Para dispositivos móveis, coloca em uma coluna */
+  }
+
+  /* Ajuste dos filtros rápidos */
+  .filter-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    background: #1f2937;
+    color: #cbd5e1;
+    border: 1px solid var(--border);
+  }
+
+  .chip.active {
+    background: #374151;
+    color: #93c5fd;
+  }
+}
+
+@media (max-width: 480px) {
+
+  /* Ajuste do Header */
+  .header {
+    padding: 10px 10px; /* Ajuste o padding para dispositivos móveis */
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.15), transparent 40%);
+  }
+
+  /* Ajuste no título do header */
+  .header-title {
+    font-size: 0.5rem; /* Reduz o tamanho da fonte */
+    text-align: center; /* Centraliza o nome da empresa */
+    margin: 0;
+  }
+
+   /* Ajuste da logo */
+  .logo {
+    width: 20px;  /* Reduz a largura da logo */
+    height: 20px; /* Ajuste proporcional para a altura */
+    margin-right: 10px; /* Espaço à direita da logo */
+    filter: drop-shadow(0 0 8px rgba(0, 150, 255, 0.6)); /* Ajuste do filtro de sombra */
+  }
+
+  
+
+  /* Ajuste do botão */
+  .theme-btn {
+    font-size: 0.75rem; /* Reduz o tamanho da fonte do botão */
+    padding: 6px 10px;  /* Ajusta o padding do botão */
+  }
+
+  /* Ajuste do espaçamento entre logo e título */
+  .header-inner {
+    gap: 10px; /* Adiciona espaçamento entre logo e título */
+  }
+
+  /* Remover o espaçamento do header quando em mobile */
+  .header-spacer {
+    display: none;
+  }
+
+  /* Ajustes para telas muito pequenas (smartphones em modo retrato) */
+  .theme-btn {
+    font-size: 0.55rem;
+    padding: 6px 10px;
+  }
+
+  /* Tabela */
+  th, td {
+    font-size: 0.5rem; /* Tamanho da fonte das células ainda menor */
+    padding: 2px 1px; /* Reduz o padding nas células */
+  }
+
+  /* Cards */
+  .card {
+    padding: 0px; /* Reduz ainda mais o padding dos cards */
+  }
+
+  /* Ajustes nas fontes e nos gráficos */
+  .graph-container h3 {
+    font-size: 0.7rem; /* Menor título para gráficos */
+  }
+
+  .graph-content div {
+    height: 100px; /* Menor altura para gráficos em telas muito pequenas */
+  }
+
+  /* Ajustes de filtros */
+  .input, .select {
+    font-size: 0.75rem;
+    padding: 4px;
+  }
+
+  /* Ajustes gerais de layout */
+  .footer {
+    font-size: 1rem; /* Reduz o tamanho da fonte no footer */
+  }
+
+  .card .kpi-title {
+    font-size: 0.75rem;
+  }
+
+  /* Organizando gráficos um embaixo do outro */
+  .graph-container {
+    display: flex;
+    flex-direction: column;  /* Alinha os gráficos em coluna */
+    gap: 12px;  /* Espaço entre os gráficos */
+  }
+
+  .graph-content {
+    display: flex;
+    flex-direction: column;  /* Organiza os gráficos em coluna */
+  }
+
+  /* Ajuste para os gráficos */
+  .graph-content div {
+    width: 100%;  /* Gráficos ocupando toda a largura */
+    height: 150px;  /* Ajuste a altura dos gráficos */
+  }
+}
+
 
