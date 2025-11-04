@@ -255,7 +255,8 @@ export default function FinanceCRM() {
         (r.status || "").toLowerCase() === status.toLowerCase();
 
       let matchPeriodo = true;
-      if (quickRange !== "Todos" && d) {
+      // se filtro por mês ou ano estiver ativo, ignora quickRange
+      if (quickRange !== "Todos" && d && mes === "Todos" && ano === "Todos") {
         const today = new Date();
         if (quickRange === "30d") {
           const start = new Date();
@@ -680,7 +681,17 @@ export default function FinanceCRM() {
             />
             <div className="filter-group"><label className="filter-label">Cliente</label><select className="select" value={cliente} onChange={(e) => setCliente(e.target.value)}>{clientes.map((c, index) => (<option key={index} value={c}>{c}</option>))}</select></div>
             <div className="filter-group"><label className="filter-label">Status</label><select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>{["Todos","Pago","Pendente","Atrasado"].map((s, index) => (<option key={index} value={s}>{s}</option>))}</select></div>
-            <div className="filter-group"><label className="filter-label">ID</label><select className="select" value={mes} onChange={(e) => setMes(e.target.value)}>{meses.map((m, index) => (<option key={index} value={m}>{m}</option>))}</select></div>
+            <div className="filter-group">
+              <label className="filter-label">Mês</label>
+              <select className="select" value={mes} onChange={(e) => setMes(e.target.value)}>
+                {meses.map((m, index) => (
+                  <option key={index} value={m}>
+                    {m === "Todos" ? "Todos" : `${m}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="filter-group"><label className="filter-label">Ano</label><select className="select" value={ano} onChange={(e) => setAno(e.target.value)}>{anos.map((a, index) => (<option key={index} value={a}>{a}</option>))}</select></div>
           </div>
 
