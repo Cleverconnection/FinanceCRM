@@ -51,7 +51,7 @@ async function getGraphClient() {
 // ======== PERFIL DO USUÁRIO MICROSOFT ========
 async function getUserProfile(graphClient) {
   const profile = await graphClient.api('/me').get();
-  console.log('👤 allysono logado:', profile.displayName, profile.mail || profile.userPrincipalName);
+  console.log('👤 Usuário logado:', profile.displayName, profile.mail || profile.userPrincipalName);
   return {
     name: profile.displayName,
     email: profile.mail || profile.userPrincipalName,
@@ -81,35 +81,32 @@ async function loadExcelAsRows() {
   const client = await getGraphClient();
 
   try {
-    // ✅ ID fixo da planilha NFs.xlsx
-    const fileId = "01FWWAKIWDG33XP6MGBRCJXCA46JZC7FT3";
+    // ✅ ID fixo no SharePoint
+    const siteId = "d21efab6-83a1-47d8-86ec-68296b31442f";
+    const driveId = "b!tvoe0qGD2EeG7GgpazFEL5xBSoVgpDdMqENBL3FYLvPKjufZ6TUjRq1KvbMjsPUY";
+    const fileId = "01S4Q2WR6ZU56TRNSRLVG2OZW376RKKRSR"; // NFs.xlsx
 
-    // ✅ Carregar a aba "Planilha1"
     const used = await client
-      .api(`/me/drive/items/${fileId}/workbook/worksheets('Planilha1')/usedRange`)
+      .api(`/sites/${siteId}/drives/${driveId}/items/${fileId}/workbook/worksheets('Planilha1')/usedRange`)
       .get();
 
     const values = used.values || [];
-    if (values.length === 0) return [];
+    if (!values.length) return [];
 
-    const headers = values[0].map((h) => String(h).trim());
-    const rows = values.slice(1).map((row) => {
-      const normalized = Object.fromEntries(
-        headers.map((h, i) => [String(h).trim().toLowerCase(), row[i]])
-      );
-      return normalized;
-    });
+    const headers = values[0].map(h => String(h).trim());
+    const rows = values.slice(1).map(row =>
+      Object.fromEntries(headers.map((h, i) => [h.toLowerCase(), row[i]]))
+    );
 
-    console.log(`✅ Planilha NFs carregada com ${rows.length} linhas.`);
-    console.log("Dados carregados:", rows);
-
+    console.log(`✅ NFs carregada: ${rows.length} linhas`);
     return rows;
 
   } catch (err) {
-    console.error("❌ Erro ao ler planilha via Graph:", err);
+    console.error("❌ Erro ao carregar NFs:", err);
     return [];
   }
 }
+
 
 // Converte serial do Excel ou string "dd/mm/yyyy" para Date
 function toDate(val) {
