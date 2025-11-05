@@ -544,7 +544,6 @@ export default function FinanceCRM() {
 
           <div className="header-spacer" />
           {/* === INÍCIO: Mostra nome do usuário logado + botão sair === */}
-          {/* === INÍCIO: Mostra nome do usuário logado + botão sair === */}
           {user && (
             <div
               style={{
@@ -564,11 +563,6 @@ export default function FinanceCRM() {
                     borderRadius: "50%",
                     objectFit: "cover",
                     border: "2px solid var(--primary)",  // Borda opcional
-                    cursor: "pointer",  // Deixa a foto interativa
-                  }}
-                  onClick={() => {
-                    const buttonWrapper = document.querySelector('.header-inner .buttons-wrapper');
-                    buttonWrapper.classList.toggle('show');  // Alterna a visibilidade dos botões
                   }}
                 />
               ) : (
@@ -582,11 +576,6 @@ export default function FinanceCRM() {
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "1.2rem",
-                    cursor: "pointer",  // Deixa a foto interativa
-                  }}
-                  onClick={() => {
-                    const buttonWrapper = document.querySelector('.header-inner .buttons-wrapper');
-                    buttonWrapper.classList.toggle('show');  // Alterna a visibilidade dos botões
                   }}
                 >
                   👤  {/* Ícone padrão */}
@@ -614,7 +603,6 @@ export default function FinanceCRM() {
               </button>
             </div>
           )}
-
 
 
           {/* === FIM === */}
