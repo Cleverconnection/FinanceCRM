@@ -59,21 +59,20 @@ async function getUserProfile(graphClient) {
 }
 
 
-async function getUserPhoto(accessToken) {
+async function getUserPhoto(accessToken, setPhoto) {
   try {
     const response = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-
     if (!response.ok) throw new Error("Sem foto de perfil");
-
     const blob = await response.blob();
     const imageUrl = URL.createObjectURL(blob);
-    setUserPhoto(imageUrl);
+    setPhoto(imageUrl);
   } catch (error) {
     console.warn("Foto de perfil não encontrada:", error);
   }
 }
+
 
 
 
@@ -99,6 +98,8 @@ async function loadExcelAsRows() {
     );
 
     console.log(`✅ NFs carregada: ${rows.length} linhas`);
+    window._rowsDebug = rows;
+
     return rows;
 
   } catch (err) {
@@ -198,7 +199,7 @@ export default function FinanceCRM() {
           scopes: ["User.Read"],
           account: msalInstance.getAllAccounts()[0],
         });
-        await getUserPhoto(tokenResponse.accessToken);
+        await getUserPhoto(tokenResponse.accessToken, setUserPhoto);
 
         // Salva os dados no localStorage para evitar novas requisições
         localStorage.setItem("userName", userInfo.name);
@@ -237,15 +238,70 @@ export default function FinanceCRM() {
     [rows]
   );
   const [ano, setAno] = useState("Todos");
-  const meses = ["Todos", "01","02","03","04","05","06","07","08","09","10","11","12"];
+  // filtro por mês com nomes
+  // lista de meses (sem "Todos", pois atrapalha o índice)
+  const meses = [
+    "Todos",
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+
+  // Campos possíveis que representam a "data de pagamento" na planilha
+  const DATE_KEYS = [
+    "data de pagamento",
+    "data_pagamento",
+    "pagamento",
+    "data pagamento",
+    "data"
+  ];
+
+  // Usa seu utilitário 'pick' + 'toDate' que já existem no arquivo
+  const getRowDate = (r) => toDate(pick(r, DATE_KEYS));
+
   const [mes, setMes] = useState("Todos");
+
+  const matchMes = (data) => {
+    if (!data) return true;
+    if (mes === "Todos") return true;
+
+    // tenta converter DD/MM/YYYY -> YYYY-MM-DD
+    let d;
+
+    if (data.includes("/")) {
+      const [dia, mesBR, ano] = data.split("/");
+      d = new Date(`${ano}-${mesBR}-${dia}`);
+    } else {
+      d = new Date(data);
+    }
+
+    if (isNaN(d)) return true; // se der erro na data, deixa passar
+
+    const mesNome = meses[d.getMonth()]; 
+
+    return mesNome === mes;
+  };
+
+
+
 
   // ======== FILTROS RÁPIDOS ========
   const [quickRange, setQuickRange] = useState("Todos");
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      const d = parseDate(r.data_pagamento || r.data);
+      const d = getRowDate(r); // agora pegamos sempre a data correta da planilha
+
+
       const matchTxt =
         q.trim() === "" ||
         `${r.cliente} ${r.servico || ""}`.toLowerCase().includes(q.toLowerCase());
@@ -274,9 +330,13 @@ export default function FinanceCRM() {
 
       const matchAno =
         ano === "Todos" || (d && d.getFullYear().toString() === ano.toString());
+
+      // mês da linha
       const matchMes =
-        mes === "Todos" ||
-        (d && String(d.getMonth() + 1).padStart(2, "0") === mes);
+        mes === "Todos" || (d && meses[d.getMonth() + 1] === mes);
+
+
+
 
       return matchTxt && matchCli && matchSt && matchPeriodo && matchAno && matchMes;
     });
@@ -484,6 +544,7 @@ export default function FinanceCRM() {
 
           <div className="header-spacer" />
           {/* === INÍCIO: Mostra nome do usuário logado + botão sair === */}
+          {/* === INÍCIO: Mostra nome do usuário logado + botão sair === */}
           {user && (
             <div
               style={{
@@ -503,6 +564,11 @@ export default function FinanceCRM() {
                     borderRadius: "50%",
                     objectFit: "cover",
                     border: "2px solid var(--primary)",  // Borda opcional
+                    cursor: "pointer",  // Deixa a foto interativa
+                  }}
+                  onClick={() => {
+                    const buttonWrapper = document.querySelector('.header-inner .buttons-wrapper');
+                    buttonWrapper.classList.toggle('show');  // Alterna a visibilidade dos botões
                   }}
                 />
               ) : (
@@ -516,6 +582,11 @@ export default function FinanceCRM() {
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "1.2rem",
+                    cursor: "pointer",  // Deixa a foto interativa
+                  }}
+                  onClick={() => {
+                    const buttonWrapper = document.querySelector('.header-inner .buttons-wrapper');
+                    buttonWrapper.classList.toggle('show');  // Alterna a visibilidade dos botões
                   }}
                 >
                   👤  {/* Ícone padrão */}
@@ -543,6 +614,7 @@ export default function FinanceCRM() {
               </button>
             </div>
           )}
+
 
 
           {/* === FIM === */}
