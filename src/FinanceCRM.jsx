@@ -9,7 +9,6 @@ import { PublicClientApplication } from "@azure/msal-browser";
 import { msalConfig } from "./authConfig";
 import { Client } from "@microsoft/microsoft-graph-client";
 
-
 // ======== FORMATADORES ========
 const BRL = (n) =>
   (Number(n || 0)).toLocaleString("pt-BR", {
@@ -58,7 +57,6 @@ async function getUserProfile(graphClient) {
   };
 }
 
-
 async function getUserPhoto(accessToken, setPhoto) {
   try {
     const response = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
@@ -72,9 +70,6 @@ async function getUserPhoto(accessToken, setPhoto) {
     console.warn("Foto de perfil não encontrada:", error);
   }
 }
-
-
-
 
 async function loadExcelAsRows() {
   const client = await getGraphClient();
@@ -108,25 +103,40 @@ async function loadExcelAsRows() {
   }
 }
 
-
+// Converte serial do Excel ou string "dd/mm/yyyy" para Date
 // Converte serial do Excel ou string "dd/mm/yyyy" para Date
 function toDate(val) {
   if (val == null || val === "") return null;
+  
   if (typeof val === "number") {
-    // Serial do Excel -> Date (base 1899-12-30)
-    const utc = new Date(Date.UTC(1899, 11, 30));
-    return new Date(utc.getTime() + val * 86400000);
+    // Tratamento de Serial do Excel.
+    // Usamos o tempo em milissegundos do dia 1 de Janeiro de 1900.
+    const excelBaseTime = Date.UTC(1900, 0, 1) - (2 * 86400000); 
+    
+    // Calcula a data: (base + (dias * ms por dia))
+    // ✅ CORREÇÃO: Adiciona 12 horas (43200000 ms) ao total. Isso força a data a ficar no meio do dia
+    // em UTC, garantindo que não retroceda para o dia anterior no fuso horário local.
+    const d = new Date(excelBaseTime + (val * 86400000) + 43200000);
+    
+    return d;
   }
+  
   if (typeof val === "string") {
-    // normaliza "dd/mm/yyyy" ou "yyyy-mm-dd"
+    // normaliza "dd/mm/yyyy"
     const s = val.trim();
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
       const [d, m, y] = s.split("/").map(Number);
-      return new Date(y, m - 1, d);
+      
+      // ✅ CORREÇÃO: Cria a data local e adiciona 1 dia para compensar o fuso horário.
+      const dateLocal = new Date(y, m - 1, d); 
+      dateLocal.setDate(dateLocal.getDate() + 1);
+      return dateLocal;
     }
+    
     const d = new Date(s);
     return isNaN(d) ? null : d;
   }
+  
   const d = new Date(val);
   return isNaN(d) ? null : d;
 }
@@ -148,8 +158,6 @@ function pick(obj, keys) {
   return null;
 }
 
-
-
 export default function FinanceCRM() {
   // ======== THEME ========
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
@@ -165,12 +173,10 @@ export default function FinanceCRM() {
   const [loadingAuth, setLoadingAuth] = useState(true); // novo: controla carregamento
   const [userPhoto, setUserPhoto] = useState(null);
 
-
   // ======== DATA ========
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
-
 
   useEffect(() => {
     async function fetchData() {
@@ -218,7 +224,6 @@ export default function FinanceCRM() {
     fetchData();
   }, []);
 
-
   // ======== FILTERS ========
   const [q, setQ] = useState("");
   const clientes = useMemo(
@@ -241,33 +246,14 @@ export default function FinanceCRM() {
   // filtro por mês com nomes
   // lista de meses (sem "Todos", pois atrapalha o índice)
   const meses = [
-    "Todos",
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-    "Setembro",
-    "Outubro",
-    "Novembro",
-    "Dezembro",
-  ];
+    "Todos","Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
   // Campos possíveis que representam a "data de pagamento" na planilha
   const DATE_KEYS = [
-    "data de pagamento",
-    "data_pagamento",
-    "pagamento",
-    "data pagamento",
-    "data"
-  ];
+    "data de pagamento","data_pagamento","pagamento","data pagamento","data"];
 
   // Usa seu utilitário 'pick' + 'toDate' que já existem no arquivo
   const getRowDate = (r) => toDate(pick(r, DATE_KEYS));
-
   const [mes, setMes] = useState("Todos");
 
   const matchMes = (data) => {
@@ -291,9 +277,6 @@ export default function FinanceCRM() {
     return mesNome === mes;
   };
 
-
-
-
   // ======== FILTROS RÁPIDOS ========
   const [quickRange, setQuickRange] = useState("Todos");
 
@@ -312,7 +295,7 @@ export default function FinanceCRM() {
 
       let matchPeriodo = true;
       // se filtro por mês ou ano estiver ativo, ignora quickRange
-      if (quickRange !== "Todos" && d && mes === "Todos" && ano === "Todos") {
+      if (quickRange !== "Todos" && d) { // Não precisa mais checar se mes e ano são "Todos"
         const today = new Date();
         if (quickRange === "30d") {
           const start = new Date();
@@ -335,9 +318,6 @@ export default function FinanceCRM() {
       const matchMes =
         mes === "Todos" || (d && meses[d.getMonth() + 1] === mes);
 
-
-
-
       return matchTxt && matchCli && matchSt && matchPeriodo && matchAno && matchMes;
     });
   }, [rows, q, cliente, status, ano, mes, quickRange]);
@@ -353,64 +333,24 @@ export default function FinanceCRM() {
   const atrasados = useMemo(() => {
     const hoje = new Date();
 
-    // Funções auxiliares
-    const normalize = (k) =>
-      k?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-    const pick = (obj, keys) => {
-      const allKeys = Object.keys(obj).reduce((acc, k) => {
-        acc[normalize(k)] = k;
-        return acc;
-      }, {});
-      for (const key of keys) {
-        const nk = normalize(key);
-        if (allKeys[nk]) return obj[allKeys[nk]];
-      }
-      return null;
-    };
-
-    const toDate = (val) => {
-      if (val == null || val === "") return null;
-      if (typeof val === "number") {
-        const utc = new Date(Date.UTC(1899, 11, 30));
-        return new Date(utc.getTime() + val * 86400000);
-      }
-      if (typeof val === "string") {
-        const s = val.trim();
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-          const [d, m, y] = s.split("/").map(Number);
-          return new Date(y, m - 1, d);
-        }
-        const d = new Date(s);
-        return isNaN(d) ? null : d;
-      }
-      const d = new Date(val);
-      return isNaN(d) ? null : d;
-    };
-
-    // Colunas ajustadas para a planilha
+    // Colunas ajustadas para a planilha (Data REAL do pagamento)
     const PAG_KEYS = [
-      "data de pagamento",
+      "data de pagamento", // Seu título (Coluna H)
       "data_pagamento",
       "pagamento",
-      "data pagamento"
     ];
 
+    // Colunas ajustadas para a planilha (Data LIMITE que o cliente deve pagar / Vencimento)
     const EMI_KEYS = [
-      // Data de emissão agora deve ser “Data de Pagamento” da planilha
-      "data de pagamento",
-      "data_pagamento",
-      "pagamento",
-      "data pagamento"
+      "data criacao", // <--- 🚨 NOVO: Incluindo o título exato da sua Coluna F!
+      "data de emissao",
+      "data de vencimento",
+      "emissao",
+      "vencimento",
     ];
 
     const SERV_KEYS = [
-      "assunto",
-      "descricao",
-      "descrição",
-      "serviço",
-      "servico"
-    ];
+      "assunto","descricao","descrição","serviço","servico"];
 
     return filtered
       .map((r) => {
@@ -440,10 +380,6 @@ export default function FinanceCRM() {
         return pendente && r.__diff != null && r.__diff > 0;
       });
   }, [filtered]);
-
-
-
-
   // ======== CHARTS ========
   const COLORS = [
     "#3b82f6","#22c55e","#f59e0b","#ef4444",
@@ -471,8 +407,6 @@ export default function FinanceCRM() {
     return Array.from(m, ([status, valor]) => ({ name: status, value: valor }));
   }, [filtered]);
 
-  
-
   // ======== EXPORT CSV ========
   function exportCSV() {
       const cols = ["data","cliente","assunto","valor","status"];
@@ -498,15 +432,12 @@ export default function FinanceCRM() {
       URL.revokeObjectURL(url);
   }
 
-
-
   // ======== MODO COMPACTO ========
   const [compact, setCompact] = useState(false);
 
   // ======== TABELA ========
   const [limit, setLimit] = useState(5);
   const [showAtrasados, setShowAtrasados] = useState(false);
-
 
   return (
     <div className={compact ? "compact" : ""}>
@@ -604,7 +535,6 @@ export default function FinanceCRM() {
             </div>
           )}
 
-
           {/* === FIM === */}
           <button className="theme-btn" onClick={exportCSV}>⬇️ Exportar CSV</button>
           <button className="theme-btn" onClick={() => setCompact((c) => !c)}>
@@ -621,45 +551,80 @@ export default function FinanceCRM() {
 
       <div className="container" style={{ paddingTop: 20 }}>
         {/* ALERTA DE ATRASO */}
-        {/* Debug de pagamentos atrasados */}
-        {/* ALERTA DE PAGAMENTOS EM ATRASO */}
         {atrasados.length > 0 && (
-          <div className="card"
-              style={{
-                background: "rgba(255, 50, 50, 0.15)",
-                border: "1px solid rgba(255, 50, 50, 0.4)",
-                color: "#fff",
-                marginBottom: "16px",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
-              }}
-              onClick={() => setShowAtrasados(!showAtrasados)}
+          <div
+            className="card"
+            // ✅ 1. Acessibilidade: Div agora é um botão acessível por tab e enter/espaço
+            aria-expanded={showAtrasados}
+            role="button"
+            tabIndex="0"
+            onClick={() => setShowAtrasados(!showAtrasados)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                setShowAtrasados(!showAtrasados);
+                e.preventDefault();
+              }
+            }}
+            style={{
+              background: "rgba(255, 50, 50, 0.15)",
+              border: "1px solid rgba(255, 50, 50, 0.4)",
+              color: "#fff",
+              marginBottom: "16px",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+              maxHeight: "100px", // Limite de altura
+              overflow: "hidden",
+            }}
           >
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontWeight: 600,
-            }}>
-              <span style={{ color: "#f87171" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ color: "#f87171", flexShrink: 0 }}>
                 ⚠️ Pagamentos em atraso
               </span>
-              <span style={{ fontSize: "0.9rem", color: "#ddd" }}>
-                {atrasados.length} registro(s) — clientes:{" "}
-                {atrasados.map((r) => r.cliente).join(", ")}
-              </span>
-              <button
+
+              {/* ✅ 2. Otimização UX: Limita clientes e usa ellipsis para evitar overflow */}
+              <span
                 style={{
-                  background: "#7f1d1d",
-                  border: "none",
+                  fontSize: "0.9rem",
+                  color: "#ddd",
+                  flexGrow: 1, 
+                  margin: "0 10px", 
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  textAlign: "right",
+                }}
+                // Tooltip mostra a lista completa no hover
+                title={`Clientes em atraso: ${atrasados.map((r) => r.cliente).join(", ")}`}
+              >
+                {atrasados.length} registro(s) —{" "}
+                {atrasados
+                  .map((r) => r.cliente)
+                  .slice(0, 3) // Limita a 3 clientes
+                  .join(", ")}
+                {atrasados.length > 3 && ` e mais ${atrasados.length - 3} cliente(s)`}
+              </span>
+              
+              {/* ✅ 3. Design: Usa span como indicador no lugar do botão redundante */}
+              <span
+                style={{
+                  background: showAtrasados ? "#be185d" : "#7f1d1d",
                   color: "#fff",
                   borderRadius: "6px",
                   padding: "4px 10px",
-                  cursor: "pointer",
+                  transition: "background 0.3s ease",
+                  marginLeft: "10px",
+                  flexShrink: 0,
                 }}
               >
                 {showAtrasados ? "🔽 Ocultar" : "🔍 Ver detalhes"}
-              </button>
+              </span>
             </div>
           </div>
         )}
@@ -675,8 +640,9 @@ export default function FinanceCRM() {
                 <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <th>Cliente</th>
                   <th>Serviço</th>
-                  <th>Data Pagamento</th>
+                  <th>Valor</th>
                   <th>Data Emissão</th>
+                  <th>Data Pagamento</th>
                   <th>Dias em atraso</th>
                   <th>Status</th>
                 </tr>
@@ -690,14 +656,17 @@ export default function FinanceCRM() {
                     {/* Serviço */}
                     <td>{r.servico || "-"}</td>
 
-                    {/* Data de Pagamento */}
-                    <td>
-                      {r.__dPag ? r.__dPag.toLocaleDateString("pt-BR") : "-"}
-                    </td>
+                    {/* Valor */}
+                    <td>{BRL(r.valor)}</td>
 
                     {/* Data de Emissão */}
                     <td>
                       {r.__dEmi ? r.__dEmi.toLocaleDateString("pt-BR") : "-"}
+                    </td>
+
+                    {/* Data de Pagamento */}
+                    <td>
+                      {r.__dPag ? r.__dPag.toLocaleDateString("pt-BR") : "-"}
                     </td>
 
                     {/* Dias em atraso */}
@@ -719,9 +688,6 @@ export default function FinanceCRM() {
             </table>
           </div>
         )}
-
-
-
 
         {/* KPIs */}
         <div className="grid grid-3">
@@ -958,8 +924,6 @@ export default function FinanceCRM() {
             </div>
           )}
         </div>
-
-
         <div className="footer">
           Clever Connection © {new Date().getFullYear()}
         </div>
