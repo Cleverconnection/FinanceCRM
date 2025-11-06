@@ -179,7 +179,7 @@ export default function FinanceCRM() {
   const [errMsg, setErrMsg] = useState("");
 
   useEffect(() => {
-    async function fetchData() {
+    async function fetchProfile() {
       try {
         setLoadingAuth(true); // Mostra estado "autenticando..."
 
@@ -211,9 +211,6 @@ export default function FinanceCRM() {
         localStorage.setItem("userName", userInfo.name);
         localStorage.setItem("userPhoto", userPhoto || ""); // Foto, se tiver
 
-        // Carrega os dados do Excel
-        const data = await loadExcelAsRows();
-        setRows(data);
       } catch (err) {
         console.error("Erro ao autenticar ou carregar dados:", err);
         setErrMsg("Falha na autenticação com Microsoft.");
@@ -221,8 +218,26 @@ export default function FinanceCRM() {
         setLoadingAuth(false); // Tira o estado de carregando
       }
     }
-    fetchData();
+    fetchProfile();
   }, []);
+
+  // Linhas 279 (ou após o primeiro useEffect)
+  useEffect(() => {
+      // Se a autenticação falhou ou não terminou, não carregue os dados
+      if (loadingAuth || !user) return; 
+      
+      // Agora só carregamos os dados
+      async function fetchData() {
+          setLoading(true); // Exibe loading dos dados
+          const data = await loadExcelAsRows();
+          setRows(data);
+          setLoading(false); // Remove loading dos dados
+      }
+
+      fetchData();
+
+      // Dependência: Roda assim que o usuário (e o token) estiverem disponíveis
+  }, [user, loadingAuth]);
 
   // ======== FILTERS ========
   const [q, setQ] = useState("");
