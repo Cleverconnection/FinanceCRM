@@ -30,28 +30,21 @@ body {
 }
 
 .container {
-  width: 100%; /* Garantir que a largura ocupe toda a tela */
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
-  padding: 16px; /* Ajuste de padding para telas pequenas */
+  padding: 16px;
 }
-
-
-@media (max-width: 768px) {
-  .container {
-    padding: 8px; /* Ajuste o padding para telas menores */
-  }
-}
-
 
 .recharts-tooltip-cursor {
-  fill: rgba(59, 130, 246, 0.08) !important; /* leve azul translúcido */
+  fill: rgba(59, 130, 246, 0.08) !important;
   stroke: none !important;
 }
 
+/* === HEADER FIX: Layout principal do header === */
 .header {
   background: linear-gradient(90deg, rgba(37, 99, 235, 0.15), transparent 40%);
-  padding: 40px 20px;
+  padding: 20px 0; /* Padding reduzido */
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 40;
   backdrop-filter: blur(8px);
@@ -63,13 +56,12 @@ body {
   gap: 12px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 60px;
+  padding: 0 16px; /* Padding ajustado */
 }
 .header-title {
   font-family: "Inter", "Poppins", "Segoe UI", sans-serif;
   font-weight: 600;
-  font-size: 2.0rem;
+  font-size: 1.8rem; /* Fonte ligeiramente menor */
   color: var(--primary);
   letter-spacing: 0.5px;
 }
@@ -79,13 +71,20 @@ body {
   padding: 8px 12px; border-radius: 10px;
   background: var(--bg-card);
   color: var(--text); cursor: pointer; font-weight: 600;
+  transition: all 0.2s ease;
 }
 .theme-btn:hover { border-color: var(--primary); }
 
+
+/* === GRID e LAYOUT PADRÃO === */
 .grid { display: grid; gap: 16px; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
-@media (max-width: 768px) { .grid-3 { grid-template-columns: 1fr; } }
 
+/* === CHARTS GRID (NOVO) === */
+.charts-grid { grid-template-columns: 2fr 1fr; }
+
+
+/* === CARD e KPI === */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -94,23 +93,17 @@ body {
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .card:hover { transform: translateY(-1px); box-shadow: 0 10px 36px rgba(0,0,0,0.22); }
-
 .kpi-title { font-size: 0.9rem; color: var(--muted); font-weight: 600; }
 .kpi-value { font-size: 1.8rem; font-weight: 800; margin-top: 8px; }
 
+/* === FILTROS === */
 .filters {
   display: grid;
-  grid-template-columns: 1fr 1fr; /* Exibe em 2 colunas em dispositivos menores */
+  grid-template-columns: 1fr 1fr; /* 2 colunas */
   gap: 12px;
 }
-
-@media (max-width: 768px) {
-  .filters {
-    grid-template-columns: 1fr; /* Exibe em 1 coluna em telas menores */
-  }
-}
-
-
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-label { font-size: 12px; color: var(--muted); margin-left: 4px; }
 .input, .select {
   width: 100%; background: var(--bg-card);
   color: var(--text);
@@ -120,16 +113,33 @@ body {
 }
 .input:focus, .select:focus { border-color: var(--primary); }
 
+/* filtros rápidos */
+.filter-quick {
+  display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;
+  margin-top: 10px;
+}
+.chip {
+  background: #111827;
+  color: #cbd5e1;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.chip.active { background:#1f2937; color:#93c5fd; border-color:#374151; }
+
+
+/* === TABELA === */
 .table-wrapper { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th {
-  text-transform: uppercase;
-}
-
 th, td { padding: 10px 12px; font-size: 0.82rem; }
-thead th { text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); }
+thead th { text-align: left; color: var(--muted); border-bottom: 1px solid var(--border); text-transform: uppercase; }
 tbody tr { border-bottom: 1px solid var(--border); }
 tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+/* === BADGES === */
 .badge {
   display: inline-block; padding: 4px 10px; border-radius: 999px;
   font-size: 0.76rem; font-weight: 700; letter-spacing: 0.2px;
@@ -141,36 +151,216 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
 
 .footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 30px 0; }
 
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+
+/* ========================================= */
+/* === AJUSTES PARA TELAS MÉDIAS (TABLETS) === */
+/* ========================================= */
+@media (max-width: 900px) {
+    /* Gráficos: Colapsam para 1 coluna */
+    .charts-grid {
+        grid-template-columns: 1fr !important;
+    }
 }
 
-.filter-label {
-  font-size: 12px;
-  color: var(--muted);
-  margin-left: 4px;
+
+/* =========================================== */
+/* === AJUSTES PARA TELAS PEQUENAS (MOBILE) === */
+/* =========================================== */
+@media (max-width: 768px) {
+  .container { padding: 10px; } /* Reduz o padding geral */
+
+  /* Header: Colapsa verticalmente para melhor visualização */
+  .header-inner {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+      height: auto; /* Permite que o header cresça */
+  }
+
+  /* Esconde o spacer para forçar o empilhamento */
+  .header-spacer { display: none; }
+
+  /* Título e Logo: Mantém o primeiro bloco junto */
+  .header-inner > img {
+      width: 48px !important;
+      height: 48px !important;
+  }
+  .header-title {
+      font-size: 1.5rem !important; /* Título principal menor */
+  }
+
+  /* Bloco de botões de ação (Exportar, Compactar, Tema) */
+  .header-inner > :nth-child(4) { /* Seleciona o bloco de botões de ação */
+      display: flex;
+      flex-wrap: wrap; /* Permite que os botões quebrem a linha */
+      width: 100%;
+      justify-content: flex-end; /* Alinha à direita */
+      gap: 8px; /* Espaçamento menor entre os botões */
+  }
+  
+  /* Bloco do usuário: Alinha horizontalmente novamente */
+  .header-inner > div[style] {
+      width: 100%;
+      justify-content: space-between;
+  }
+
+  /* Grid de KPIs: Colapsa para 1 coluna */
+  .grid-3 { grid-template-columns: 1fr; }
+
+  /* Filtros: Colapsa para 1 coluna */
+  .filters { grid-template-columns: 1fr; }
+  
+  /* Reduz o padding de cards e aumenta o espaçamento */
+  .card { padding: 12px; }
+  .grid { gap: 12px; }
+
+  /* Botões e Inputs: Padding menor para ganhar espaço */
+  .theme-btn { padding: 6px 10px; font-size: 0.9rem; }
+  .input, .select { padding: 8px 10px; }
+
+  /* Oculta colunas menos importantes da tabela em mobile para melhor visualização
+     Se a tabela ainda estiver muito larga, você pode adicionar esta regra:
+     th:nth-child(2), td:nth-child(2) { display: none; } // Oculta a coluna PO
+  */
+
+  /* Oculta os botões de ação e info do usuário para forçar o menu vertical */
+  .user-info-desktop, .header-actions-desktop {
+      display: none !important;
+  }
+
+  /* Exibe o novo botão de menu */
+  .mobile-menu-btn {
+      display: block !important;
+      order: 3; /* Coloca o botão após o logo/título */
+      margin-left: auto; /* Alinha à direita */
+      margin-top: -55px; /* Ajusta a posição vertical */
+  }
+
+  .header-inner {
+      flex-direction: row; /* Volta a alinhar o logo/título/menu na mesma linha */
+      align-items: center;
+      gap: 12px;
+  }
+  
+  /* Ajusta o título e logo para ficarem lado a lado no mobile */
+  .header-inner > img { order: 1; }
+  .header-inner > .header-title { order: 2; }
+  
+  /* Remove as regras duplicadas e incorretamente aninhadas:
+     .mobile-menu-btn { display: none; }
+     e todos os estilos de .mobile-menu-overlay e .mobile-menu-popup
+  */
+
+} /* FIM do media query para mobile */
+
+/* ========================================= */
+/* === ESTILOS GLOBAIS (FORA DO MEDIA QUERY) === */
+/* ========================================= */
+
+/* Oculta o botão de menu por padrão em telas grandes (Desktop) */
+.mobile-menu-btn {
+    display: none;
 }
 
-/* filtros rápidos */
-.filter-quick {
-  display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;
-}
-.chip {
-  background: #111827;
-  color: #cbd5e1;
-  border: 1px solid var(--border);
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.chip.active { background:#1f2937; color:#93c5fd; border-color:#374151; }
 
-/* labels dos filtros (já usados) */
-.filter-group { display:flex; flex-direction:column; gap:4px; }
-.filter-label { font-size:12px; color:var(--muted); margin-left:4px; }
+/* === ESTILOS DO POP-UP (GLOBAL) === */
+.mobile-menu-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    justify-content: flex-end; /* Abre o menu na lateral direita */
+    transition: background 0.3s ease;
+}
 
-/* modo compacto */
-.compact .card { padding: 10px; }
+.mobile-menu-popup {
+    background: var(--bg-card);
+    width: 80%; /* Ocupa 80% da tela mobile */
+    max-width: 350px;
+    height: 100%;
+    padding: 20px;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
+    animation: slideIn 0.3s forwards;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.menu-header h3 { color: var(--primary); margin: 0; font-size: 1.2rem; }
+.menu-header .close-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.menu-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+.menu-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+}
+
+.menu-item.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+.menu-item.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 15px 0;
+}
+
+.user-info-mobile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+}
+.user-info-mobile img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.user-info-mobile .user-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}

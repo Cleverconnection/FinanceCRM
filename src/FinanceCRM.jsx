@@ -168,6 +168,9 @@ export default function FinanceCRM() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // NOVO ESTADO: Controle do menu mobile
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
   // ======== AUTH ========
   const [user, setUser] = useState(null);       // novo: guarda info do usuário
   const [loadingAuth, setLoadingAuth] = useState(true); // novo: controla carregamento
@@ -291,6 +294,22 @@ export default function FinanceCRM() {
 
     return mesNome === mes;
   };
+
+  // Defina a ordem e o nome amigável das colunas
+  const columnMap = useMemo(() => {
+      // Estas chaves devem corresponder às chaves minúsculas retornadas do Excel
+      return [
+          { key: 'id', label: 'ID', style: { width: '50px' } },
+          { key: 'po', label: 'PO' },
+          { key: 'cliente', label: 'Cliente' },
+          { key: 'assunto', label: 'Serviço Principal' },
+          { key: 'valor', label: 'Valor', type: 'currency' },
+          { key: 'data criacao', label: 'Emissão', type: 'date' }, // Se a chave for 'data criacao'
+          { key: 'data de pagamento', label: 'Pagamento', type: 'date' },
+          { key: 'status', label: 'Status', type: 'status' },
+          // Adicione outras colunas da sua planilha se necessário
+      ];
+  }, []);
 
   // ======== FILTROS RÁPIDOS ========
   const [quickRange, setQuickRange] = useState("Todos");
@@ -453,6 +472,16 @@ export default function FinanceCRM() {
   // ======== TABELA ========
   const [limit, setLimit] = useState(5);
   const [showAtrasados, setShowAtrasados] = useState(false);
+  
+  const handleLogout = async () => {
+    try {
+      await msalInstance.logoutPopup(); // Faz logout
+      localStorage.clear(); // Limpa os dados no localStorage
+      window.location.reload(); // Recarrega a página
+    } catch (err) {
+      console.error("Erro ao sair:", err);
+    }
+  };
 
   return (
     <div className={compact ? "compact" : ""}>
@@ -489,9 +518,10 @@ export default function FinanceCRM() {
           </div>
 
           <div className="header-spacer" />
-          {/* === INÍCIO: Mostra nome do usuário logado + botão sair === */}
+          {/* === INÍCIO: Mostra nome do usuário logado + botão sair (apenas no desktop) === */}
           {user && (
             <div
+              className="user-info-desktop" // NOVA CLASSE para controle CSS
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -534,15 +564,7 @@ export default function FinanceCRM() {
 
               <button
                 className="theme-btn"
-                onClick={async () => {
-                  try {
-                    await msalInstance.logoutPopup();  // Faz logout
-                    localStorage.clear();  // Limpa os dados no localStorage
-                    window.location.reload();  // Recarrega a página
-                  } catch (err) {
-                    console.error("Erro ao sair:", err);
-                  }
-                }}
+                onClick={handleLogout} // Usa a nova função
                 title="Sair da conta Microsoft"
               >
                 🚪 Sair
@@ -551,18 +573,86 @@ export default function FinanceCRM() {
           )}
 
           {/* === FIM === */}
-          <button className="theme-btn" onClick={exportCSV}>⬇️ Exportar CSV</button>
-          <button className="theme-btn" onClick={() => setCompact((c) => !c)}>
-            {compact ? "🔎 Expandir" : "🗜️ Compactar"}
-          </button>
+
+          {/* === BOTÕES DE AÇÃO: Agrupados para Desktop. Ocultar no Mobile com CSS === */}
+          <div className="header-actions-desktop">
+            <button className="theme-btn" onClick={exportCSV}>⬇️ Exportar CSV</button>
+            <button className="theme-btn" onClick={() => setCompact((c) => !c)}>
+              {compact ? "🔎 Expandir" : "🗜️ Compactar"}
+            </button>
+            <button
+              className="theme-btn"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? "☀️ Claro" : "🌙 Escuro"}
+            </button>
+          </div>
+          {/* === FIM BOTÕES DESKTOP === */}
+
+          {/* === NOVO: BOTÃO DE MENU MOBILE === */}
           <button
-            className="theme-btn"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="theme-btn mobile-menu-btn" // NOVA CLASSE
+            onClick={() => setShowMobileMenu(true)}
+            aria-expanded={showMobileMenu}
+            title="Menu de Ações"
           >
-            {theme === "dark" ? "☀️ Claro" : "🌙 Escuro"}
+            ⚙️ Menu
           </button>
         </div>
       </div>
+
+      {/* === NOVO: POP-UP DE MENU MOBILE (Condicional) === */}
+      {showMobileMenu && (
+        <div className="mobile-menu-overlay" onClick={() => setShowMobileMenu(false)}>
+          <div className="mobile-menu-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="menu-header">
+                <h3>Opções</h3>
+                <button className="close-btn" onClick={() => setShowMobileMenu(false)} aria-label="Fechar Menu">
+                    &times;
+                </button>
+            </div>
+
+            {/* AÇÕES */}
+            <button className="menu-item" onClick={() => {
+                exportCSV();
+                setShowMobileMenu(false);
+            }}>⬇️ Exportar CSV</button>
+
+            <button className="menu-item" onClick={() => {
+                setCompact((c) => !c);
+                setShowMobileMenu(false);
+            }}>
+                {compact ? "🔎 Expandir Tabela" : "🗜️ Compactar Tabela"}
+            </button>
+
+            <button className="menu-item" onClick={() => {
+                setTheme(theme === "dark" ? "light" : "dark");
+                setShowMobileMenu(false);
+            }}>
+                {theme === "dark" ? "☀️ Tema Claro" : "🌙 Tema Escuro"}
+            </button>
+            
+            <hr />
+
+            {/* INFORMAÇÃO E LOGOUT DO USUÁRIO */}
+            {user && (
+                <>
+                    <div className="user-info-mobile">
+                        {userPhoto ? (
+                            <img src={userPhoto} alt="Foto" />
+                        ) : (
+                            <div className="user-icon">👤</div>
+                        )}
+                        <span>Logado como: <b>{user.name}</b></span>
+                    </div>
+                    <button className="menu-item danger" onClick={handleLogout}>
+                        🚪 Sair da Conta
+                    </button>
+                </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="container" style={{ paddingTop: 20 }}>
         {/* ALERTA DE ATRASO */}
@@ -758,7 +848,7 @@ export default function FinanceCRM() {
 
         {/* GRÁFICOS */}
         {!compact && (
-          <div className="grid" style={{ gridTemplateColumns: "2fr 1fr" }}>
+          <div className="grid charts-grid">
             <div className="card">
               <div className="kpi-title" style={{ marginBottom: 8 }}>
                 Top 12 por Cliente
@@ -864,51 +954,35 @@ export default function FinanceCRM() {
             <table>
               <thead>
                 <tr>
-                  {rows.length > 0 &&
-                    Object.keys(rows[0]).map((header, index) => (
-                      <th key={index}>{header}</th>
-                    ))}
+                  {/* Usa o array de mapeamento para os cabeçalhos */}
+                  {columnMap.map((col, index) => (
+                    <th key={index} style={col.style}>
+                      {col.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, limit).map((row, index) => (
+                {filtered.slice(0, limit).map((row, index) => (
                   <tr key={index}>
-                    {Object.entries(row).map(([key, value], i) => {
-                      let formatted = value;
+                    {columnMap.map((col, i) => {
+                      const rawValue = row[col.key] || row[col.key.replace(/\s/g, '_')]; // Tenta chave com ou sem espaço
+                      let formatted = rawValue;
 
-                      // 1️⃣ Formata datas (Excel serial ou string ISO/PT)
-                      if (typeof value === "number" && value > 40000 && value < 60000) {
-                        const base = new Date(Date.UTC(1899, 11, 30));
-                        const d = new Date(base.getTime() + value * 86400000);
-                        formatted = d.toLocaleDateString("pt-BR");
-                      } else if (
-                        typeof value === "string" &&
-                        (/\d{4}-\d{2}-\d{2}/.test(value) || /\d{2}\/\d{2}\/\d{4}/.test(value))
-                      ) {
-                        const d = new Date(value);
-                        if (!isNaN(d)) formatted = d.toLocaleDateString("pt-BR");
+                      if (col.type === 'currency') {
+                        // Formata valores monetários
+                        formatted = BRL(rawValue);
+                      } else if (col.type === 'date') {
+                        // Usa a função toDate que já está corrigida
+                        const dateObj = toDate(rawValue);
+                        formatted = dateObj ? dateObj.toLocaleDateString("pt-BR") : "-";
                       }
 
-                      // 2️⃣ Formata valores monetários
-                      if (key.toLowerCase().includes("valor") && !isNaN(value)) {
-                        formatted = Number(value).toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        });
-                      }
+                      if (col.type === 'status') {
+                        // Lógica para o badge de Status
+                        const statusText = String(formatted || "").toLowerCase();
+                        const statusClass = statusText === "pago" ? "pago" : statusText === "pendente" ? "pendente" : statusText === "atrasado" ? "atrasado" : "";
 
-                      // 3️⃣ Adiciona a cor ao status (Pago, Pendente, Atrasado)
-                      if (key.toLowerCase() === "status") {
-                        let statusClass = "";
-                        if (formatted === "Pago") {
-                          statusClass = "pago";
-                        } else if (formatted === "Pendente") {
-                          statusClass = "pendente";
-                        } else if (formatted === "Atrasado") {
-                          statusClass = "atrasado";
-                        }
-
-                        // Aplica a classe de status no <td> para mudar a cor
                         return (
                           <td key={i}>
                             <span className={`badge ${statusClass}`}>
@@ -918,7 +992,7 @@ export default function FinanceCRM() {
                         );
                       }
 
-                      return <td key={i}>{formatted}</td>;
+                      return <td key={i}>{formatted || "-"}</td>;
                     })}
                   </tr>
                 ))}
