@@ -3,7 +3,7 @@ import logo from "./assets/logo.png";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, PieChart, Pie, Cell
+  CartesianGrid, PieChart, Pie, Cell, Legend // ✅ Legend adicionado!
 } from "recharts";
 import { PublicClientApplication } from "@azure/msal-browser";
 import { msalConfig } from "./authConfig";
@@ -35,17 +35,18 @@ async function getGraphClient() {
     const login = await msalInstance.loginPopup({ scopes: graphScopes });
     account = login.account;
   }
-
-  const tokenResp = await msalInstance
-    .acquireTokenSilent({ scopes: graphScopes, account })
-    .catch(() => msalInstance.acquireTokenPopup({ scopes: graphScopes }));
-
-  console.log("✅ Token obtido:", tokenResp.accessToken.slice(0, 20) + "...");
+  
+  const tokenResponse = await msalInstance.acquireTokenSilent({
+    scopes: graphScopes,
+    account: account,
+  });
 
   return Client.init({
-    authProvider: (done) => done(null, tokenResp.accessToken),
+    authProvider: (done) => {
+      done(null, tokenResponse.accessToken);
+    },
   });
-}
+} 
 
 // ======== PERFIL DO USUÁRIO MICROSOFT ========
 async function getUserProfile(graphClient) {
@@ -162,11 +163,14 @@ export default function FinanceCRM() {
   // ======== THEME ========
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "light") root.classList.add("light");
-    else root.classList.remove("light");
+    document.documentElement.className = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  // Função para alternar o tema
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   // NOVO ESTADO: Controle do menu mobile
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -440,6 +444,7 @@ export default function FinanceCRM() {
     );
     return Array.from(m, ([status, valor]) => ({ name: status, value: valor }));
   }, [filtered]);
+  
 
   // ======== EXPORT CSV ========
   function exportCSV() {
@@ -740,57 +745,60 @@ export default function FinanceCRM() {
             <div style={{ fontWeight: 600, color: "#3b82f6", marginBottom: "8px" }}>
               🧮 Pagamentos em Atraso (detalhes)
             </div>
-            <table style={{ width: "100%", fontSize: "0.9rem", color: "#ddd" }}>
-              <thead>
-                <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                  <th>Cliente</th>
-                  <th>Serviço</th>
-                  <th>Valor</th>
-                  <th>Data Emissão</th>
-                  <th>Data Pagamento</th>
-                  <th>Dias em atraso</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {atrasados.map((r, i) => (
-                  <tr key={i}>
-                    {/* Cliente */}
-                    <td>{r.cliente || "-"}</td>
+            
+            {/* INÍCIO DO AJUSTE: Adiciona o wrapper para o scroll horizontal */}
+            <div className="table-wrapper"> 
+                <table style={{ width: "100%", fontSize: "0.9rem", color: "#ddd" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                      <th>Cliente</th>
+                      <th>Serviço</th>
+                      <th>Valor</th>
+                      <th>Dias em atraso</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {atrasados.map((r, i) => (
+                      <tr key={i}>
+                        {/* Cliente */}
+                        <td>{r.cliente || "-"}</td>
 
-                    {/* Serviço */}
-                    <td>{r.servico || "-"}</td>
+                        {/* Serviço */}
+                        <td>{r.servico || "-"}</td>
 
-                    {/* Valor */}
-                    <td>{BRL(r.valor)}</td>
+                        {/* Valor */}
+                        <td>{BRL(r.valor)}</td>
 
-                    {/* Data de Emissão */}
-                    <td>
-                      {r.__dEmi ? r.__dEmi.toLocaleDateString("pt-BR") : "-"}
-                    </td>
+                        {/* Data de Emissão */}
+                        <td>
+                          {r.__dEmi ? r.__dEmi.toLocaleDateString("pt-BR") : "-"}
+                        </td>
 
-                    {/* Data de Pagamento */}
-                    <td>
-                      {r.__dPag ? r.__dPag.toLocaleDateString("pt-BR") : "-"}
-                    </td>
+                        {/* Data de Pagamento */}
+                        <td>
+                          {r.__dPag ? r.__dPag.toLocaleDateString("pt-BR") : "-"}
+                        </td>
 
-                    {/* Dias em atraso */}
-                    <td style={{ color: r.__diff > 30 ? "#ef4444" : "#facc15" }}>
-                      {r.__diff != null ? `${r.__diff} dias` : "N/A"}
-                    </td>
+                        {/* Dias em atraso */}
+                        <td style={{ color: r.__diff > 30 ? "#ef4444" : "#facc15" }}>
+                          {r.__diff != null ? `${r.__diff} dias` : "N/A"}
+                        </td>
 
-                    {/* Status */}
-                    <td>
-                      <span className={`badge ${String(r.status || "").toLowerCase()}`}>
-                        {r.status || "-"}
-                      </span>
+                        {/* Status */}
+                        <td>
+                          <span className={`badge ${String(r.status || "").toLowerCase()}`}>
+                            {r.status || "-"}
+                          </span>
 
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
 
-            </table>
+                </table>
+            </div> 
+            {/* FIM DO AJUSTE */}
           </div>
         )}
 

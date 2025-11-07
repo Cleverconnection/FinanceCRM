@@ -27,6 +27,7 @@ body {
   background: var(--bg);
   color: var(--text);
   margin: 0;
+  overflow-x: hidden;
 }
 
 .container {
@@ -218,10 +219,21 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   .theme-btn { padding: 6px 10px; font-size: 0.9rem; }
   .input, .select { padding: 8px 10px; }
 
-  /* Oculta colunas menos importantes da tabela em mobile para melhor visualização
-     Se a tabela ainda estiver muito larga, você pode adicionar esta regra:
-     th:nth-child(2), td:nth-child(2) { display: none; } // Oculta a coluna PO
-  */
+  .card table th, .card table td {
+      padding: 8px 6px;
+      font-size: 0.7rem; 
+      line-height: 1.1;
+  }
+
+  /* Oculta as colunas 'Data Emissão' e 'Data Pagamento' no mobile */
+  /* Coluna 4 (Data Emissão) e Coluna 5 (Data Pagamento) */
+  .card table th:nth-child(4), 
+  .card table td:nth-child(4),
+  .card table th:nth-child(5), 
+  .card table td:nth-child(5) {
+      display: none; 
+  }
+
 
   /* Oculta os botões de ação e info do usuário para forçar o menu vertical */
   .user-info-desktop, .header-actions-desktop {
@@ -237,7 +249,6 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   }
 
   .header-inner {
-      flex-direction: row; /* Volta a alinhar o logo/título/menu na mesma linha */
       align-items: center;
       gap: 12px;
   }
