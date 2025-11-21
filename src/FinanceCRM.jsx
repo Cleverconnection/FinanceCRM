@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import logo from "./assets/logo.png";
 import * as XLSX from "xlsx";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, PieChart, Pie, Cell, Legend // ✅ Legend adicionado!
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from "recharts";
 import { PublicClientApplication } from "@azure/msal-browser";
 import { msalConfig } from "./authConfig";
@@ -11,7 +20,7 @@ import { Client } from "@microsoft/microsoft-graph-client";
 
 // ======== FORMATADORES ========
 const BRL = (n) =>
-  (Number(n || 0)).toLocaleString("pt-BR", {
+  Number(n || 0).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -35,7 +44,7 @@ async function getGraphClient() {
     const login = await msalInstance.loginPopup({ scopes: graphScopes });
     account = login.account;
   }
-  
+
   const tokenResponse = await msalInstance.acquireTokenSilent({
     scopes: graphScopes,
     account: account,
@@ -46,12 +55,16 @@ async function getGraphClient() {
       done(null, tokenResponse.accessToken);
     },
   });
-} 
+}
 
 // ======== PERFIL DO USUÁRIO MICROSOFT ========
 async function getUserProfile(graphClient) {
-  const profile = await graphClient.api('/me').get();
-  console.log('👤 Usuário logado:', profile.displayName, profile.mail || profile.userPrincipalName);
+  const profile = await graphClient.api("/me").get();
+  console.log(
+    "👤 Usuário logado:",
+    profile.displayName,
+    profile.mail || profile.userPrincipalName
+  );
   return {
     name: profile.displayName,
     email: profile.mail || profile.userPrincipalName,
@@ -60,9 +73,12 @@ async function getUserProfile(graphClient) {
 
 async function getUserPhoto(accessToken, setPhoto) {
   try {
-    const response = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const response = await fetch(
+      "https://graph.microsoft.com/v1.0/me/photo/$value",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
     if (!response.ok) throw new Error("Sem foto de perfil");
     const blob = await response.blob();
     const imageUrl = URL.createObjectURL(blob);
@@ -76,20 +92,22 @@ async function loadExcelAsRows() {
   const client = await getGraphClient();
 
   try {
-    // ✅ ID fixo no SharePoint
     const siteId = "d21efab6-83a1-47d8-86ec-68296b31442f";
-    const driveId = "b!tvoe0qGD2EeG7GgpazFEL5xBSoVgpDdMqENBL3FYLvPKjufZ6TUjRq1KvbMjsPUY";
+    const driveId =
+      "b!tvoe0qGD2EeG7GgpazFEL5xBSoVgpDdMqENBL3FYLvPKjufZ6TUjRq1KvbMjsPUY";
     const fileId = "01S4Q2WR6ZU56TRNSRLVG2OZW376RKKRSR"; // NFs.xlsx
 
     const used = await client
-      .api(`/sites/${siteId}/drives/${driveId}/items/${fileId}/workbook/worksheets('Planilha1')/usedRange`)
+      .api(
+        `/sites/${siteId}/drives/${driveId}/items/${fileId}/workbook/worksheets('Planilha1')/usedRange`
+      )
       .get();
 
     const values = used.values || [];
     if (!values.length) return [];
 
-    const headers = values[0].map(h => String(h).trim());
-    const rows = values.slice(1).map(row =>
+    const headers = values[0].map((h) => String(h).trim());
+    const rows = values.slice(1).map((row) =>
       Object.fromEntries(headers.map((h, i) => [h.toLowerCase(), row[i]]))
     );
 
@@ -97,7 +115,6 @@ async function loadExcelAsRows() {
     window._rowsDebug = rows;
 
     return rows;
-
   } catch (err) {
     console.error("❌ Erro ao carregar NFs:", err);
     return [];
@@ -105,41 +122,30 @@ async function loadExcelAsRows() {
 }
 
 // Converte serial do Excel ou string "dd/mm/yyyy" para Date
-// Converte serial do Excel ou string "dd/mm/yyyy" para Date
 function toDate(val) {
   if (val == null || val === "") return null;
-  
+
   if (typeof val === "number") {
-    // Tratamento de Serial do Excel.
-    // Usamos o tempo em milissegundos do dia 1 de Janeiro de 1900.
-    const excelBaseTime = Date.UTC(1900, 0, 1) - (2 * 86400000); 
-    
-    // Calcula a data: (base + (dias * ms por dia))
-    // ✅ CORREÇÃO: Adiciona 12 horas (43200000 ms) ao total. Isso força a data a ficar no meio do dia
-    // em UTC, garantindo que não retroceda para o dia anterior no fuso horário local.
-    const d = new Date(excelBaseTime + (val * 86400000) + 43200000);
-    
+    const excelBaseTime = Date.UTC(1900, 0, 1) - 2 * 86400000;
+    const d = new Date(excelBaseTime + val * 86400000 + 43200000);
     return d;
   }
-  
+
   if (typeof val === "string") {
-    // normaliza "dd/mm/yyyy"
     const s = val.trim();
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
       const [d, m, y] = s.split("/").map(Number);
-      
-      // ✅ CORREÇÃO: Cria a data local e adiciona 1 dia para compensar o fuso horário.
-      const dateLocal = new Date(y, m - 1, d); 
+      const dateLocal = new Date(y, m - 1, d);
       dateLocal.setDate(dateLocal.getDate() + 1);
       return dateLocal;
     }
-    
-    const d = new Date(s);
-    return isNaN(d) ? null : d;
+
+    const d2 = new Date(s);
+    return isNaN(d2) ? null : d2;
   }
-  
-  const d = new Date(val);
-  return isNaN(d) ? null : d;
+
+  const d3 = new Date(val);
+  return isNaN(d3) ? null : d3;
 }
 
 // Pega o primeiro campo existente no objeto com esses nomes
@@ -161,23 +167,24 @@ function pick(obj, keys) {
 
 export default function FinanceCRM() {
   // ======== THEME ========
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("theme") || "dark"
+  );
   useEffect(() => {
     document.documentElement.className = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // Função para alternar o tema
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  // NOVO ESTADO: Controle do menu mobile
+  // MENU MOBILE
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // ======== AUTH ========
-  const [user, setUser] = useState(null);       // novo: guarda info do usuário
-  const [loadingAuth, setLoadingAuth] = useState(true); // novo: controla carregamento
+  const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [userPhoto, setUserPhoto] = useState(null);
 
   // ======== DATA ========
@@ -188,62 +195,52 @@ export default function FinanceCRM() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        setLoadingAuth(true); // Mostra estado "autenticando..."
+        setLoadingAuth(true);
 
-        // Verifica se já temos o nome e foto no localStorage
         const storedUserName = localStorage.getItem("userName");
         const storedUserPhoto = localStorage.getItem("userPhoto");
 
         if (storedUserName) {
-          setUser({ name: storedUserName }); // Recupera do localStorage
+          setUser({ name: storedUserName });
         }
 
         if (storedUserPhoto) {
-          setUserPhoto(storedUserPhoto); // Recupera a foto do localStorage
+          setUserPhoto(storedUserPhoto);
         }
 
-        // Se não estiver salvo, realiza a autenticação e recupera os dados
         const client = await getGraphClient();
         const userInfo = await getUserProfile(client);
-        setUser(userInfo); // Salva o usuário logado no estado
+        setUser(userInfo);
 
-        // 🔹 Busca a foto do perfil do usuário logado
         const tokenResponse = await msalInstance.acquireTokenSilent({
           scopes: ["User.Read"],
           account: msalInstance.getAllAccounts()[0],
         });
         await getUserPhoto(tokenResponse.accessToken, setUserPhoto);
 
-        // Salva os dados no localStorage para evitar novas requisições
         localStorage.setItem("userName", userInfo.name);
-        localStorage.setItem("userPhoto", userPhoto || ""); // Foto, se tiver
-
+        localStorage.setItem("userPhoto", userPhoto || "");
       } catch (err) {
         console.error("Erro ao autenticar ou carregar dados:", err);
         setErrMsg("Falha na autenticação com Microsoft.");
       } finally {
-        setLoadingAuth(false); // Tira o estado de carregando
+        setLoadingAuth(false);
       }
     }
     fetchProfile();
   }, []);
 
-  // Linhas 279 (ou após o primeiro useEffect)
   useEffect(() => {
-      // Se a autenticação falhou ou não terminou, não carregue os dados
-      if (loadingAuth || !user) return; 
-      
-      // Agora só carregamos os dados
-      async function fetchData() {
-          setLoading(true); // Exibe loading dos dados
-          const data = await loadExcelAsRows();
-          setRows(data);
-          setLoading(false); // Remove loading dos dados
-      }
+    if (loadingAuth || !user) return;
 
-      fetchData();
+    async function fetchData() {
+      setLoading(true);
+      const data = await loadExcelAsRows();
+      setRows(data);
+      setLoading(false);
+    }
 
-      // Dependência: Roda assim que o usuário (e o token) estiverem disponíveis
+    fetchData();
   }, [user, loadingAuth]);
 
   // ======== FILTERS ========
@@ -254,27 +251,44 @@ export default function FinanceCRM() {
   );
   const [cliente, setCliente] = useState("Todos");
   const [status, setStatus] = useState("Todos");
+
   const anos = useMemo(
-    () =>
-      [
-        "Todos",
-        ...Array.from(new Set(rows.map((r) => parseDate(r.data)?.getFullYear())))
-          .filter(Boolean)
-          .sort(),
-      ],
+    () => [
+      "Todos",
+      ...Array.from(
+        new Set(rows.map((r) => parseDate(r.data)?.getFullYear()))
+      )
+        .filter(Boolean)
+        .sort(),
+    ],
     [rows]
   );
   const [ano, setAno] = useState("Todos");
-  // filtro por mês com nomes
-  // lista de meses (sem "Todos", pois atrapalha o índice)
+
   const meses = [
-    "Todos","Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    "Todos",
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
 
-  // Campos possíveis que representam a "data de pagamento" na planilha
   const DATE_KEYS = [
-    "data de pagamento","data_pagamento","pagamento","data pagamento","data"];
+    "data de pagamento",
+    "data_pagamento",
+    "pagamento",
+    "data pagamento",
+    "data",
+  ];
 
-  // Usa seu utilitário 'pick' + 'toDate' que já existem no arquivo
   const getRowDate = (r) => toDate(pick(r, DATE_KEYS));
   const [mes, setMes] = useState("Todos");
 
@@ -282,9 +296,7 @@ export default function FinanceCRM() {
     if (!data) return true;
     if (mes === "Todos") return true;
 
-    // tenta converter DD/MM/YYYY -> YYYY-MM-DD
     let d;
-
     if (data.includes("/")) {
       const [dia, mesBR, ano] = data.split("/");
       d = new Date(`${ano}-${mesBR}-${dia}`);
@@ -292,48 +304,45 @@ export default function FinanceCRM() {
       d = new Date(data);
     }
 
-    if (isNaN(d)) return true; // se der erro na data, deixa passar
-
-    const mesNome = meses[d.getMonth()]; 
-
+    if (isNaN(d)) return true;
+    const mesNome = meses[d.getMonth()];
     return mesNome === mes;
   };
 
-  // Defina a ordem e o nome amigável das colunas
-  const columnMap = useMemo(() => {
-      // Estas chaves devem corresponder às chaves minúsculas retornadas do Excel
-      return [
-          { key: 'id', label: 'ID', style: { width: '50px' } },
-          { key: 'po', label: 'PO' },
-          { key: 'cliente', label: 'Cliente' },
-          { key: 'assunto', label: 'Serviço Principal' },
-          { key: 'valor', label: 'Valor', type: 'currency' },
-          { key: 'data criacao', label: 'Emissão', type: 'date' }, // Se a chave for 'data criacao'
-          { key: 'data de pagamento', label: 'Pagamento', type: 'date' },
-          { key: 'status', label: 'Status', type: 'status' },
-          // Adicione outras colunas da sua planilha se necessário
-      ];
-  }, []);
+  const columnMap = useMemo(
+    () => [
+      { key: "id", label: "ID", style: { width: "50px" } },
+      { key: "po", label: "PO" },
+      { key: "cliente", label: "Cliente" },
+      { key: "assunto", label: "Serviço Principal" },
+      { key: "valor", label: "Valor", type: "currency" },
+      { key: "data criacao", label: "Emissão", type: "date" },
+      { key: "data de pagamento", label: "Pagamento", type: "date" },
+      { key: "status", label: "Status", type: "status" },
+    ],
+    []
+  );
 
   // ======== FILTROS RÁPIDOS ========
   const [quickRange, setQuickRange] = useState("Todos");
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      const d = getRowDate(r); // agora pegamos sempre a data correta da planilha
-
+      const d = getRowDate(r);
 
       const matchTxt =
         q.trim() === "" ||
-        `${r.cliente} ${r.servico || ""}`.toLowerCase().includes(q.toLowerCase());
+        `${r.cliente} ${r.servico || ""}`
+          .toLowerCase()
+          .includes(q.toLowerCase());
       const matchCli = cliente === "Todos" || r.cliente === cliente;
       const matchSt =
         status === "Todos" ||
         (r.status || "").toLowerCase() === status.toLowerCase();
 
       let matchPeriodo = true;
-      // se filtro por mês ou ano estiver ativo, ignora quickRange
-      if (quickRange !== "Todos" && d) { // Não precisa mais checar se mes e ano são "Todos"
+
+      if (quickRange !== "Todos" && d) {
         const today = new Date();
         if (quickRange === "30d") {
           const start = new Date();
@@ -352,11 +361,10 @@ export default function FinanceCRM() {
       const matchAno =
         ano === "Todos" || (d && d.getFullYear().toString() === ano.toString());
 
-      // mês da linha
-      const matchMes =
+      const matchMesFiltro =
         mes === "Todos" || (d && meses[d.getMonth() + 1] === mes);
 
-      return matchTxt && matchCli && matchSt && matchPeriodo && matchAno && matchMes;
+      return matchTxt && matchCli && matchSt && matchPeriodo && matchAno && matchMesFiltro;
     });
   }, [rows, q, cliente, status, ano, mes, quickRange]);
 
@@ -371,24 +379,21 @@ export default function FinanceCRM() {
   const atrasados = useMemo(() => {
     const hoje = new Date();
 
-    // Colunas ajustadas para a planilha (Data REAL do pagamento)
-    const PAG_KEYS = [
-      "data de pagamento", // Seu título (Coluna H)
-      "data_pagamento",
-      "pagamento",
-    ];
-
-    // Colunas ajustadas para a planilha (Data LIMITE que o cliente deve pagar / Vencimento)
+    const PAG_KEYS = ["data de pagamento", "data_pagamento", "pagamento"];
     const EMI_KEYS = [
-      "data criacao", // <--- 🚨 NOVO: Incluindo o título exato da sua Coluna F!
+      "data criacao",
       "data de emissao",
       "data de vencimento",
       "emissao",
       "vencimento",
     ];
-
     const SERV_KEYS = [
-      "assunto","descricao","descrição","serviço","servico"];
+      "assunto",
+      "descricao",
+      "descrição",
+      "serviço",
+      "servico",
+    ];
 
     return filtered
       .map((r) => {
@@ -409,7 +414,7 @@ export default function FinanceCRM() {
           __dPag: dPag,
           __dEmi: dEmi,
           __diff: diffDays,
-          __statusNorm: st
+          __statusNorm: st,
         };
       })
       .filter((r) => {
@@ -418,10 +423,17 @@ export default function FinanceCRM() {
         return pendente && r.__diff != null && r.__diff > 0;
       });
   }, [filtered]);
+
   // ======== CHARTS ========
   const COLORS = [
-    "#3b82f6","#22c55e","#f59e0b","#ef4444",
-    "#a855f7","#06b6d4","#f97316","#84cc16",
+    "#3b82f6",
+    "#22c55e",
+    "#f59e0b",
+    "#ef4444",
+    "#a855f7",
+    "#06b6d4",
+    "#f97316",
+    "#84cc16",
   ];
 
   const byCliente = useMemo(() => {
@@ -444,31 +456,34 @@ export default function FinanceCRM() {
     );
     return Array.from(m, ([status, valor]) => ({ name: status, value: valor }));
   }, [filtered]);
-  
 
   // ======== EXPORT CSV ========
   function exportCSV() {
-      const cols = ["data","cliente","assunto","valor","status"];
-      const header = cols.join(";");
-      const lines = filtered.map((r) =>
-        [
-          r["data de pagamento"] ? new Date(r["data de pagamento"]).toLocaleDateString("pt-BR") : "",
-          (r.cliente || "").replace(/;/g, ","),
-          (r.assunto || "").replace(/;/g, ","),
-          String(r.valor || 0).replace(".", ","),
-          (r.status || ""),
-        ].join(";")
-      );
-      const csv = [header, ...lines].join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `financas-filtrado-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+    const cols = ["data", "cliente", "assunto", "valor", "status"];
+    const header = cols.join(";");
+    const lines = filtered.map((r) =>
+      [
+        r["data de pagamento"]
+          ? new Date(r["data de pagamento"]).toLocaleDateString("pt-BR")
+          : "",
+        (r.cliente || "").replace(/;/g, ","),
+        (r.assunto || "").replace(/;/g, ","),
+        String(r.valor || 0).replace(".", ","),
+        r.status || "",
+      ].join(";")
+    );
+    const csv = [header, ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `financas-filtrado-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   // ======== MODO COMPACTO ========
@@ -477,12 +492,12 @@ export default function FinanceCRM() {
   // ======== TABELA ========
   const [limit, setLimit] = useState(5);
   const [showAtrasados, setShowAtrasados] = useState(false);
-  
+
   const handleLogout = async () => {
     try {
-      await msalInstance.logoutPopup(); // Faz logout
-      localStorage.clear(); // Limpa os dados no localStorage
-      window.location.reload(); // Recarrega a página
+      await msalInstance.logoutPopup();
+      localStorage.clear();
+      window.location.reload();
     } catch (err) {
       console.error("Erro ao sair:", err);
     }
@@ -490,181 +505,147 @@ export default function FinanceCRM() {
 
   return (
     <div className={compact ? "compact" : ""}>
-      {/* HEADER */}
+      {/* HEADER SUPER COMPACTO NO MOBILE */}
       <div className="header">
         <div className="container header-inner">
-          <img
-            src={logo}
-            alt="Clever Connection Logo"
-            className="logo"
-            style={{
-              width: "120px",
-              height: "120px",
-              borderRadius: "12px",
-              marginRight: "12px",
-              filter: "drop-shadow(0 0 8px rgba(0, 150, 255, 0.6))",
-            }}
-          />
-          <div className="header-title" style={{ display: "flex", flexDirection: "column", lineHeight: "1.2" }}>
-            <span style={{
-              fontSize: "1.8rem",
-              fontWeight: "700",
-              color: "var(--primary)"
-            }}>
-              Clever Connection
-            </span>
-            <span style={{
-              fontSize: "1.2rem",
-              fontWeight: "500",
-              color: "var(--muted)"
-            }}>
-              Dashboard Financeiro
-            </span>
+          <div className="header-left">
+            <img src={logo} alt="Clever Connection Logo" className="logo" />
+            <span className="header-title-main">Clever Connection</span>
           </div>
 
           <div className="header-spacer" />
-          {/* === INÍCIO: Mostra nome do usuário logado + botão sair (apenas no desktop) === */}
-          {user && (
-            <div
-              className="user-info-desktop" // NOVA CLASSE para controle CSS
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                marginRight: "10px",
-              }}
-            >
-              {userPhoto ? (
-                <img
-                  src={userPhoto}  // A foto do usuário
-                  alt="Foto do usuário"
-                  style={{
-                    width: "42px",
-                    height: "42px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "2px solid var(--primary)",  // Borda opcional
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "42px",
-                    height: "42px",
-                    borderRadius: "50%",
-                    background: "var(--muted)", // Fallback para a cor de fundo
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.2rem",
-                  }}
+
+          <div className="header-right">
+            {user && (
+              <div className="user-info-desktop">
+                {userPhoto ? (
+                  <img
+                    src={userPhoto}
+                    alt="Foto do usuário"
+                    className="user-avatar"
+                  />
+                ) : (
+                  <div className="user-avatar anonymous">👤</div>
+                )}
+
+                <span className="user-name">{user.name}</span>
+
+                <button
+                  className="theme-btn"
+                  onClick={handleLogout}
+                  title="Sair da conta Microsoft"
                 >
-                  👤  {/* Ícone padrão */}
-                </div>
-              )}
+                  🚪 Sair
+                </button>
+              </div>
+            )}
 
-              <span style={{ color: "var(--primary)", fontWeight: 600 }}>
-                {user.name}  {/* Nome do usuário */}
-              </span>
-
+            <div className="header-actions-desktop">
+              <button className="theme-btn" onClick={exportCSV}>
+                ⬇️ Exportar CSV
+              </button>
               <button
                 className="theme-btn"
-                onClick={handleLogout} // Usa a nova função
-                title="Sair da conta Microsoft"
+                onClick={() => setCompact((c) => !c)}
               >
-                🚪 Sair
+                {compact ? "🔎 Expandir" : "🗜️ Compactar"}
+              </button>
+              <button className="theme-btn" onClick={toggleTheme}>
+                {theme === "dark" ? "☀️ Claro" : "🌙 Escuro"}
               </button>
             </div>
-          )}
 
-          {/* === FIM === */}
-
-          {/* === BOTÕES DE AÇÃO: Agrupados para Desktop. Ocultar no Mobile com CSS === */}
-          <div className="header-actions-desktop">
-            <button className="theme-btn" onClick={exportCSV}>⬇️ Exportar CSV</button>
-            <button className="theme-btn" onClick={() => setCompact((c) => !c)}>
-              {compact ? "🔎 Expandir" : "🗜️ Compactar"}
-            </button>
             <button
-              className="theme-btn"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="theme-btn mobile-menu-btn"
+              onClick={() => setShowMobileMenu(true)}
+              aria-expanded={showMobileMenu}
+              title="Menu de Ações"
             >
-              {theme === "dark" ? "☀️ Claro" : "🌙 Escuro"}
+              ⚙️ Menu
             </button>
           </div>
-          {/* === FIM BOTÕES DESKTOP === */}
-
-          {/* === NOVO: BOTÃO DE MENU MOBILE === */}
-          <button
-            className="theme-btn mobile-menu-btn" // NOVA CLASSE
-            onClick={() => setShowMobileMenu(true)}
-            aria-expanded={showMobileMenu}
-            title="Menu de Ações"
-          >
-            ⚙️ Menu
-          </button>
         </div>
       </div>
 
-      {/* === NOVO: POP-UP DE MENU MOBILE (Condicional) === */}
+      {/* MENU MOBILE */}
       {showMobileMenu && (
-        <div className="mobile-menu-overlay" onClick={() => setShowMobileMenu(false)}>
-          <div className="mobile-menu-popup" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="mobile-menu-overlay"
+          onClick={() => setShowMobileMenu(false)}
+        >
+          <div
+            className="mobile-menu-popup"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="menu-header">
-                <h3>Opções</h3>
-                <button className="close-btn" onClick={() => setShowMobileMenu(false)} aria-label="Fechar Menu">
-                    &times;
-                </button>
+              <h3>Opções</h3>
+              <button
+                className="close-btn"
+                onClick={() => setShowMobileMenu(false)}
+                aria-label="Fechar Menu"
+              >
+                &times;
+              </button>
             </div>
 
-            {/* AÇÕES */}
-            <button className="menu-item" onClick={() => {
+            <button
+              className="menu-item"
+              onClick={() => {
                 exportCSV();
                 setShowMobileMenu(false);
-            }}>⬇️ Exportar CSV</button>
+              }}
+            >
+              ⬇️ Exportar CSV
+            </button>
 
-            <button className="menu-item" onClick={() => {
+            <button
+              className="menu-item"
+              onClick={() => {
                 setCompact((c) => !c);
                 setShowMobileMenu(false);
-            }}>
-                {compact ? "🔎 Expandir Tabela" : "🗜️ Compactar Tabela"}
+              }}
+            >
+              {compact ? "🔎 Expandir Tabela" : "🗜️ Compactar Tabela"}
             </button>
 
-            <button className="menu-item" onClick={() => {
-                setTheme(theme === "dark" ? "light" : "dark");
+            <button
+              className="menu-item"
+              onClick={() => {
+                toggleTheme();
                 setShowMobileMenu(false);
-            }}>
-                {theme === "dark" ? "☀️ Tema Claro" : "🌙 Tema Escuro"}
+              }}
+            >
+              {theme === "dark" ? "☀️ Tema Claro" : "🌙 Tema Escuro"}
             </button>
-            
+
             <hr />
 
-            {/* INFORMAÇÃO E LOGOUT DO USUÁRIO */}
             {user && (
-                <>
-                    <div className="user-info-mobile">
-                        {userPhoto ? (
-                            <img src={userPhoto} alt="Foto" />
-                        ) : (
-                            <div className="user-icon">👤</div>
-                        )}
-                        <span>Logado como: <b>{user.name}</b></span>
-                    </div>
-                    <button className="menu-item danger" onClick={handleLogout}>
-                        🚪 Sair da Conta
-                    </button>
-                </>
+              <>
+                <div className="user-info-mobile">
+                  {userPhoto ? (
+                    <img src={userPhoto} alt="Foto" />
+                  ) : (
+                    <div className="user-icon">👤</div>
+                  )}
+                  <span>
+                    Logado como: <b>{user.name}</b>
+                  </span>
+                </div>
+                <button className="menu-item danger" onClick={handleLogout}>
+                  🚪 Sair da Conta
+                </button>
+              </>
             )}
           </div>
         </div>
       )}
 
-      <div className="container" style={{ paddingTop: 20 }}>
+      <div className="container" style={{ paddingTop: 16 }}>
         {/* ALERTA DE ATRASO */}
         {atrasados.length > 0 && (
           <div
             className="card"
-            // ✅ 1. Acessibilidade: Div agora é um botão acessível por tab e enter/espaço
             aria-expanded={showAtrasados}
             role="button"
             tabIndex="0"
@@ -682,160 +663,208 @@ export default function FinanceCRM() {
               marginBottom: "16px",
               cursor: "pointer",
               transition: "all 0.3s ease",
-              maxHeight: "100px", // Limite de altura
+              maxHeight: "100px",
               overflow: "hidden",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ color: "#f87171", flexShrink: 0 }}>
-                ⚠️ Pagamentos em atraso
-              </span>
+            <div className="alert-bar">
+              <span className="alert-title">⚠️ Pagamentos em atraso</span>
 
-              {/* ✅ 2. Otimização UX: Limita clientes e usa ellipsis para evitar overflow */}
               <span
-                style={{
-                  fontSize: "0.9rem",
-                  color: "#ddd",
-                  flexGrow: 1, 
-                  margin: "0 10px", 
-                  overflow: "hidden",
-                  whiteSpace: "nowrap",
-                  textOverflow: "ellipsis",
-                  textAlign: "right",
-                }}
-                // Tooltip mostra a lista completa no hover
-                title={`Clientes em atraso: ${atrasados.map((r) => r.cliente).join(", ")}`}
+                className="alert-summary"
+                title={`Clientes em atraso: ${atrasados
+                  .map((r) => r.cliente)
+                  .join(", ")}`}
               >
                 {atrasados.length} registro(s) —{" "}
                 {atrasados
                   .map((r) => r.cliente)
-                  .slice(0, 3) // Limita a 3 clientes
+                  .slice(0, 3)
                   .join(", ")}
-                {atrasados.length > 3 && ` e mais ${atrasados.length - 3} cliente(s)`}
+                {atrasados.length > 3 &&
+                  ` e mais ${atrasados.length - 3} cliente(s)`}
               </span>
-              
-              {/* ✅ 3. Design: Usa span como indicador no lugar do botão redundante */}
-              <span
-                style={{
-                  background: showAtrasados ? "#be185d" : "#7f1d1d",
-                  color: "#fff",
-                  borderRadius: "6px",
-                  padding: "4px 10px",
-                  transition: "background 0.3s ease",
-                  marginLeft: "10px",
-                  flexShrink: 0,
-                }}
-              >
+
+              <span className={`alert-toggle ${showAtrasados ? "open" : ""}`}>
                 {showAtrasados ? "🔽 Ocultar" : "🔍 Ver detalhes"}
               </span>
             </div>
           </div>
         )}
 
-        {/* DEBUG EXPANDÍVEL */}
         {showAtrasados && atrasados.length > 0 && (
           <div className="card" style={{ background: "rgba(255,255,255,0.05)" }}>
-            <div style={{ fontWeight: 600, color: "#3b82f6", marginBottom: "8px" }}>
+            <div
+              style={{
+                fontWeight: 600,
+                color: "#3b82f6",
+                marginBottom: "8px",
+              }}
+            >
               🧮 Pagamentos em Atraso (detalhes)
             </div>
-            
-            {/* INÍCIO DO AJUSTE: Adiciona o wrapper para o scroll horizontal */}
-            <div className="table-wrapper"> 
-                <table style={{ width: "100%", fontSize: "0.9rem", color: "#ddd" }}>
-                  <thead>
-                    <tr style={{ textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                      <th>Cliente</th>
-                      <th>Serviço</th>
-                      <th>Valor</th>
-                      <th>Dias em atraso</th>
-                      <th>Status</th>
+
+            <div className="table-wrapper">
+              <table
+                style={{
+                  width: "100%",
+                  fontSize: "0.9rem",
+                  color: "#ddd",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Serviço</th>
+                    <th>Valor</th>
+                    <th>Data Emissão</th>
+                    <th>Data Pagamento</th>
+                    <th>Dias em atraso</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {atrasados.map((r, i) => (
+                    <tr key={i}>
+                      <td>{r.cliente || "-"}</td>
+                      <td>{r.servico || "-"}</td>
+                      <td>{BRL(r.valor)}</td>
+                      <td>
+                        {r.__dEmi
+                          ? r.__dEmi.toLocaleDateString("pt-BR")
+                          : "-"}
+                      </td>
+                      <td>
+                        {r.__dPag
+                          ? r.__dPag.toLocaleDateString("pt-BR")
+                          : "-"}
+                      </td>
+                      <td
+                        style={{
+                          color: r.__diff > 30 ? "#ef4444" : "#facc15",
+                        }}
+                      >
+                        {r.__diff != null ? `${r.__diff} dias` : "N/A"}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${String(
+                            r.status || ""
+                          ).toLowerCase()}`}
+                        >
+                          {r.status || "-"}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {atrasados.map((r, i) => (
-                      <tr key={i}>
-                        {/* Cliente */}
-                        <td>{r.cliente || "-"}</td>
-
-                        {/* Serviço */}
-                        <td>{r.servico || "-"}</td>
-
-                        {/* Valor */}
-                        <td>{BRL(r.valor)}</td>
-
-                        {/* Data de Emissão */}
-                        <td>
-                          {r.__dEmi ? r.__dEmi.toLocaleDateString("pt-BR") : "-"}
-                        </td>
-
-                        {/* Data de Pagamento */}
-                        <td>
-                          {r.__dPag ? r.__dPag.toLocaleDateString("pt-BR") : "-"}
-                        </td>
-
-                        {/* Dias em atraso */}
-                        <td style={{ color: r.__diff > 30 ? "#ef4444" : "#facc15" }}>
-                          {r.__diff != null ? `${r.__diff} dias` : "N/A"}
-                        </td>
-
-                        {/* Status */}
-                        <td>
-                          <span className={`badge ${String(r.status || "").toLowerCase()}`}>
-                            {r.status || "-"}
-                          </span>
-
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-
-                </table>
-            </div> 
-            {/* FIM DO AJUSTE */}
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* KPIs */}
+        {/* KPIs – em duas colunas no mobile */}
         <div className="grid grid-3">
-          <div className="card"><div className="kpi-title">Total Recebido</div><div className="kpi-value" style={{ color: "var(--success)" }}>{BRL(totalPago)}</div></div>
-          <div className="card"><div className="kpi-title">Total Pendente</div><div className="kpi-value" style={{ color: "var(--warning)" }}>{BRL(totalPend)}</div></div>
-          <div className="card"><div className="kpi-title">Total Geral</div><div className="kpi-value" style={{ color: "var(--primary)" }}>{BRL(total)}</div></div>
+          <div className="card">
+            <div className="kpi-title">Total Recebido</div>
+            <div className="kpi-value" style={{ color: "var(--success)" }}>
+              {BRL(totalPago)}
+            </div>
+          </div>
+          <div className="card">
+            <div className="kpi-title">Total Pendente</div>
+            <div className="kpi-value" style={{ color: "var(--warning)" }}>
+              {BRL(totalPend)}
+            </div>
+          </div>
+          <div className="card">
+            <div className="kpi-title">Total Geral</div>
+            <div className="kpi-value" style={{ color: "var(--primary)" }}>
+              {BRL(total)}
+            </div>
+          </div>
         </div>
 
-        {/* FILTROS */}
+        {/* FILTROS – compactos, 2 colunas no mobile */}
         <div className="card">
-          <div className="filters" style={{ alignItems: "flex-start", gap: "14px" }}>
+          <div className="filter-group" style={{ marginBottom: "16px" }}>
+            <label className="filter-label">
+              Pesquisar cliente ou serviço
+            </label>
             <input
-              className="input"
-              placeholder="Pesquisar cliente ou serviço..."
+              type="text"
+              placeholder="Buscar..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              className="input search-input"
             />
-            <div className="filter-group"><label className="filter-label">Cliente</label><select className="select" value={cliente} onChange={(e) => setCliente(e.target.value)}>{clientes.map((c, index) => (<option key={index} value={c}>{c}</option>))}</select></div>
-            <div className="filter-group"><label className="filter-label">Status</label><select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>{["Todos","Pago","Pendente","Atrasado"].map((s, index) => (<option key={index} value={s}>{s}</option>))}</select></div>
+          </div>
+
+          <div className="filters">
             <div className="filter-group">
-              <label className="filter-label">Mês</label>
-              <select className="select" value={mes} onChange={(e) => setMes(e.target.value)}>
-                {meses.map((m, index) => (
-                  <option key={index} value={m}>
-                    {m === "Todos" ? "Todos" : `${m}`}
+              <label className="filter-label">Cliente</label>
+              <select
+                className="select"
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+              >
+                {clientes.map((c, index) => (
+                  <option key={index} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="filter-group"><label className="filter-label">Ano</label><select className="select" value={ano} onChange={(e) => setAno(e.target.value)}>{anos.map((a, index) => (<option key={index} value={a}>{a}</option>))}</select></div>
+            <div className="filter-group">
+              <label className="filter-label">Status</label>
+              <select
+                className="select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                {["Todos", "Pago", "Pendente", "Atrasado"].map(
+                  (s, index) => (
+                    <option key={index} value={s}>
+                      {s}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label className="filter-label">Ano</label>
+              <select
+                className="select"
+                value={ano}
+                onChange={(e) => setAno(e.target.value)}
+              >
+                {anos.map((a, index) => (
+                  <option key={index} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label className="filter-label">Mês</label>
+              <select
+                className="select"
+                value={mes}
+                onChange={(e) => setMes(e.target.value)}
+              >
+                {meses.map((m, index) => (
+                  <option key={index} value={m}>
+                    {m === "Todos" ? "Todos" : m}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* FILTROS RÁPIDOS */}
-          <div className="filter-quick" style={{ marginTop: 10 }}>
+          <div className="filter-quick" style={{ marginTop: 12 }}>
             <span className="filter-label">Período rápido:</span>
             {[
               { k: "30d", label: "30 dias" },
@@ -854,16 +883,19 @@ export default function FinanceCRM() {
           </div>
         </div>
 
-        {/* GRÁFICOS */}
+        {/* GRÁFICOS – empilhados no mobile */}
         {!compact && (
           <div className="grid charts-grid">
             <div className="card">
               <div className="kpi-title" style={{ marginBottom: 8 }}>
                 Top 12 por Cliente
               </div>
-              <div style={{ height: 360 }}>
+              <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={byCliente} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <BarChart
+                    data={byCliente}
+                    margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#60a5fa" />
@@ -873,17 +905,27 @@ export default function FinanceCRM() {
                     <CartesianGrid stroke="var(--border)" vertical={false} />
                     <XAxis
                       dataKey="cliente"
-                      tick={{ fill: "#b0b8c1", fontSize: 12, fontWeight: 600 }}
+                      tick={{
+                        fill: "#b0b8c1",
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
                       interval={0}
                       angle={-20}
-                      height={90}
+                      height={80}
                       tickMargin={10}
                       dy={20}
                     />
                     <YAxis
-                      tick={{ fill: "var(--muted)", fontSize: 13, fontWeight: 600 }}
+                      tick={{
+                        fill: "var(--muted)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
                       domain={[0, (dataMax) => Math.ceil(dataMax * 1.1)]}
-                      tickFormatter={(value) => value.toLocaleString("pt-BR")}
+                      tickFormatter={(value) =>
+                        value.toLocaleString("pt-BR")
+                      }
                     />
                     <Tooltip
                       contentStyle={{
@@ -894,7 +936,10 @@ export default function FinanceCRM() {
                         boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
                       }}
                       itemStyle={{ color: "#fff", fontWeight: 500 }}
-                      labelStyle={{ color: "#00aaff", fontWeight: 600 }}
+                      labelStyle={{
+                        color: "#00aaff",
+                        fontWeight: 600,
+                      }}
                       formatter={(value) => BRL(value)}
                     />
                     <Bar
@@ -902,14 +947,18 @@ export default function FinanceCRM() {
                       radius={[8, 8, 0, 0]}
                       cursor="pointer"
                       onClick={(data) =>
-                        setCliente(cliente === data.cliente ? "Todos" : data.cliente)
+                        setCliente(
+                          cliente === data.cliente ? "Todos" : data.cliente
+                        )
                       }
                     >
                       {byCliente.map((entry, i) => (
                         <Cell
                           key={i}
                           fill="url(#barGrad)"
-                          stroke={cliente === entry.cliente ? "#93c5fd" : "none"}
+                          stroke={
+                            cliente === entry.cliente ? "#93c5fd" : "none"
+                          }
                           strokeWidth={cliente === entry.cliente ? 2 : 0}
                         />
                       ))}
@@ -920,16 +969,18 @@ export default function FinanceCRM() {
             </div>
 
             <div className="card">
-              <div className="kpi-title" style={{ marginBottom: 8 }}>Por Status</div>
-              <div style={{ height: 360 }}>
+              <div className="kpi-title" style={{ marginBottom: 8 }}>
+                Por Status
+              </div>
+              <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={byStatus}
                       dataKey="value"
                       nameKey="name"
-                      outerRadius={120}
-                      innerRadius={60}
+                      outerRadius={110}
+                      innerRadius={55}
                       stroke="none"
                     >
                       {byStatus.map((e, i) => (
@@ -947,8 +998,9 @@ export default function FinanceCRM() {
                       }}
                       itemStyle={{ color: "#fff" }}
                       labelStyle={{ color: "#ccc" }}
-                      formatter={(value, name) => [`${BRL(value)}`, `${name}`]}
+                      formatter={(value, name) => [BRL(value), name]}
                     />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -962,7 +1014,6 @@ export default function FinanceCRM() {
             <table>
               <thead>
                 <tr>
-                  {/* Usa o array de mapeamento para os cabeçalhos */}
                   {columnMap.map((col, index) => (
                     <th key={index} style={col.style}>
                       {col.label}
@@ -974,22 +1025,31 @@ export default function FinanceCRM() {
                 {filtered.slice(0, limit).map((row, index) => (
                   <tr key={index}>
                     {columnMap.map((col, i) => {
-                      const rawValue = row[col.key] || row[col.key.replace(/\s/g, '_')]; // Tenta chave com ou sem espaço
+                      const rawValue =
+                        row[col.key] || row[col.key.replace(/\s/g, "_")];
                       let formatted = rawValue;
 
-                      if (col.type === 'currency') {
-                        // Formata valores monetários
+                      if (col.type === "currency") {
                         formatted = BRL(rawValue);
-                      } else if (col.type === 'date') {
-                        // Usa a função toDate que já está corrigida
+                      } else if (col.type === "date") {
                         const dateObj = toDate(rawValue);
-                        formatted = dateObj ? dateObj.toLocaleDateString("pt-BR") : "-";
+                        formatted = dateObj
+                          ? dateObj.toLocaleDateString("pt-BR")
+                          : "-";
                       }
 
-                      if (col.type === 'status') {
-                        // Lógica para o badge de Status
-                        const statusText = String(formatted || "").toLowerCase();
-                        const statusClass = statusText === "pago" ? "pago" : statusText === "pendente" ? "pendente" : statusText === "atrasado" ? "atrasado" : "";
+                      if (col.type === "status") {
+                        const statusText = String(
+                          formatted || ""
+                        ).toLowerCase();
+                        const statusClass =
+                          statusText === "pago"
+                            ? "pago"
+                            : statusText === "pendente"
+                            ? "pendente"
+                            : statusText === "atrasado"
+                            ? "atrasado"
+                            : "";
 
                         return (
                           <td key={i}>
@@ -1010,7 +1070,10 @@ export default function FinanceCRM() {
           {filtered.length > 5 && (
             <div style={{ textAlign: "center", marginTop: "16px" }}>
               {limit < filtered.length ? (
-                <button className="theme-btn" onClick={() => setLimit(limit + 10)}>
+                <button
+                  className="theme-btn"
+                  onClick={() => setLimit(limit + 10)}
+                >
                   Listar mais
                 </button>
               ) : (
@@ -1021,6 +1084,7 @@ export default function FinanceCRM() {
             </div>
           )}
         </div>
+
         <div className="footer">
           Clever Connection © {new Date().getFullYear()}
         </div>
