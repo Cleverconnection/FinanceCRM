@@ -47,7 +47,7 @@ async function getGraphClient() {
 
   const tokenResponse = await msalInstance.acquireTokenSilent({
     scopes: graphScopes,
-    account: account,
+    account,
   });
 
   return Client.init({
@@ -364,7 +364,14 @@ export default function FinanceCRM() {
       const matchMesFiltro =
         mes === "Todos" || (d && meses[d.getMonth() + 1] === mes);
 
-      return matchTxt && matchCli && matchSt && matchPeriodo && matchAno && matchMesFiltro;
+      return (
+        matchTxt &&
+        matchCli &&
+        matchSt &&
+        matchPeriodo &&
+        matchAno &&
+        matchMesFiltro
+      );
     });
   }, [rows, q, cliente, status, ano, mes, quickRange]);
 
@@ -423,6 +430,34 @@ export default function FinanceCRM() {
         return pendente && r.__diff != null && r.__diff > 0;
       });
   }, [filtered]);
+
+  // ======== ALERTA: PRÓXIMOS PAGAMENTOS (MÊS ATUAL) ========
+  const proximosPagamentos = useMemo(() => {
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth();
+    const anoAtual = hoje.getFullYear();
+
+    return rows
+      .map((r) => {
+        const d = getRowDate(r);
+        return {
+          ...r,
+          __data: d,
+        };
+      })
+      .filter((r) => {
+        if (!r.__data) return false;
+
+        const mes = r.__data.getMonth();
+        const ano = r.__data.getFullYear();
+
+        const futuro = r.__data >= hoje;
+        const mesmoMes = mes === mesAtual && ano === anoAtual;
+
+        return futuro && mesmoMes;
+      })
+      .sort((a, b) => a.__data - b.__data);
+  }, [rows]);
 
   // ======== CHARTS ========
   const COLORS = [
@@ -489,9 +524,10 @@ export default function FinanceCRM() {
   // ======== MODO COMPACTO ========
   const [compact, setCompact] = useState(false);
 
-  // ======== TABELA ========
+  // ======== TABELA / ALERTAS STATES ========
   const [limit, setLimit] = useState(5);
   const [showAtrasados, setShowAtrasados] = useState(false);
+  const [showProximos, setShowProximos] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -763,6 +799,104 @@ export default function FinanceCRM() {
           </div>
         )}
 
+        {/* ALERTA: PRÓXIMOS PAGAMENTOS (MÊS ATUAL) */}
+        {proximosPagamentos.length > 0 && (
+          <div
+            className="card"
+            role="button"
+            tabIndex="0"
+            onClick={() => setShowProximos((p) => !p)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                setShowProximos((p) => !p);
+                e.preventDefault();
+              }
+            }}
+            style={{
+              background: "rgba(255, 200, 0, 0.15)",
+              border: "1px solid rgba(255, 200, 0, 0.4)",
+              color: "#fff",
+              marginBottom: "16px",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+            }}
+          >
+            <div className="alert-bar">
+              <span className="alert-title">
+                📅 Próximos Pagamentos (mês atual)
+              </span>
+
+              <span className="alert-summary">
+                {proximosPagamentos.length} registro(s) —{" "}
+                {proximosPagamentos
+                  .map((r) => r.cliente)
+                  .slice(0, 3)
+                  .join(", ")}
+                {proximosPagamentos.length > 3 &&
+                  ` e mais ${proximosPagamentos.length - 3} cliente(s)`}
+              </span>
+
+              <span className="alert-toggle">
+                {showProximos ? "🔽 Ocultar" : "🔍 Ver detalhes"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* DETALHES DOS PRÓXIMOS PAGAMENTOS */}
+        {showProximos && proximosPagamentos.length > 0 && (
+          <div className="card" style={{ background: "rgba(255,255,255,0.05)" }}>
+            <div
+              style={{
+                fontWeight: 600,
+                color: "#facc15",
+                marginBottom: "8px",
+              }}
+            >
+              📅 Próximos Pagamentos (detalhes)
+            </div>
+
+            <div className="table-wrapper">
+              <table
+                style={{ width: "100%", fontSize: "0.9rem", color: "#ddd" }}
+              >
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Serviço</th>
+                    <th>Valor</th>
+                    <th>Data Pagamento</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proximosPagamentos.map((r, i) => (
+                    <tr key={i}>
+                      <td>{r.cliente || "-"}</td>
+                      <td>{r.assunto || "-"}</td>
+                      <td>{BRL(r.valor)}</td>
+                      <td>
+                        {r.__data
+                          ? r.__data.toLocaleDateString("pt-BR")
+                          : "-"}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${String(
+                            r.status || ""
+                          ).toLowerCase()}`}
+                        >
+                          {r.status || "-"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* KPIs – em duas colunas no mobile */}
         <div className="grid grid-3">
           <div className="card">
@@ -823,13 +957,11 @@ export default function FinanceCRM() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
-                {["Todos", "Pago", "Pendente", "Atrasado"].map(
-                  (s, index) => (
-                    <option key={index} value={s}>
-                      {s}
-                    </option>
-                  )
-                )}
+                {["Todos", "Pago", "Pendente", "Atrasado"].map((s, index) => (
+                  <option key={index} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
 
