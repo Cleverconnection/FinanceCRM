@@ -9,6 +9,7 @@ export const msalConfig = {
   },
   cache: {
     cacheLocation: "localStorage",
+    storeAuthStateInCookie: true,
   },
   system: {
     allowRedirectInIframe: true,

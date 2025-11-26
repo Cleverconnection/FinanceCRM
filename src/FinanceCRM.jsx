@@ -37,12 +37,29 @@ const parseDate = (s) => {
 // ======== MSAL CONFIGURAÇÃO ========
 const msalInstance = new PublicClientApplication(msalConfig);
 const graphScopes = ["User.Read", "Files.Read", "Files.Read.All"];
+const isMobileDevice =
+  typeof navigator !== "undefined" &&
+  /Mobi|Android|iPhone|iPad|Mobile/.test(navigator.userAgent || "");
 
 // ======== CLIENTE MICROSOFT GRAPH ========
 async function acquireToken(scopes) {
   await msalInstance.initialize();
 
+  // Processa retornos de loginRedirect (especialmente em mobile)
+  const redirectResult = await msalInstance.handleRedirectPromise();
+  if (redirectResult?.account) {
+    msalInstance.setActiveAccount(redirectResult.account);
+    return { accessToken: redirectResult.accessToken, account: redirectResult.account };
+  }
+
   const doLogin = async () => {
+    if (isMobileDevice) {
+      await msalInstance.loginRedirect({
+        scopes,
+        prompt: "select_account",
+      });
+      return new Promise(() => {}); // fluxo continua no redirect
+    }
     const loginResp = await msalInstance.loginPopup({
       scopes,
       prompt: "select_account",
@@ -54,8 +71,8 @@ async function acquireToken(scopes) {
   let account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
   if (!account) {
     const loginResp = await doLogin();
-    account = loginResp.account;
-    return { accessToken: loginResp.accessToken, account };
+    account = loginResp?.account;
+    return { accessToken: loginResp?.accessToken, account };
   }
 
   msalInstance.setActiveAccount(account);
@@ -68,11 +85,12 @@ async function acquireToken(scopes) {
       err instanceof InteractionRequiredAuthError ||
       err.errorCode === "login_required" ||
       err.errorCode === "consent_required" ||
-      err.errorCode === "block_iframe_reload";
+      err.errorCode === "block_iframe_reload" ||
+      err.errorCode === "no_tokens_found";
 
     if (needsInteraction) {
       const loginResp = await doLogin();
-      return { accessToken: loginResp.accessToken, account: loginResp.account };
+      return { accessToken: loginResp?.accessToken, account: loginResp?.account };
     }
     throw err;
   }
@@ -102,18 +120,23 @@ async function getUserProfile(graphClient) {
 
 async function getUserPhoto(accessToken, setPhoto) {
   try {
+    if (localStorage.getItem("userNoPhoto") === "1") return;
     const response = await fetch(
       "https://graph.microsoft.com/v1.0/me/photo/$value",
       {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
-    if (!response.ok) throw new Error("Sem foto de perfil");
+    if (!response.ok) {
+      localStorage.setItem("userNoPhoto", "1");
+      return;
+    }
     const blob = await response.blob();
     const imageUrl = URL.createObjectURL(blob);
     setPhoto(imageUrl);
+    localStorage.removeItem("userNoPhoto");
   } catch (error) {
-    console.warn("Foto de perfil não encontrada:", error);
+    console.warn("Foto de perfil não encontrada:", error?.message || error);
   }
 }
 
@@ -237,12 +260,14 @@ export default function FinanceCRM() {
           setUserPhoto(storedUserPhoto);
         }
 
+        const { accessToken: userToken, account } = await acquireToken(["User.Read"]);
         const client = await getGraphClient();
         const userInfo = await getUserProfile(client);
         setUser(userInfo);
 
-        const { accessToken } = await acquireToken(["User.Read"]);
-        await getUserPhoto(accessToken, setUserPhoto);
+        if (userToken) {
+          await getUserPhoto(userToken, setUserPhoto);
+        }
 
         localStorage.setItem("userName", userInfo.name);
         localStorage.setItem("userPhoto", userPhoto || "");
