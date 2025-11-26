@@ -4,10 +4,13 @@ export const msalConfig = {
     authority: "https://login.microsoftonline.com/common",
     redirectUri:
       import.meta.env.MODE === "development"
-        ? "http://localhost:5174/FinanceCRM/"
+        ? `${window.location.origin}/`
         : "https://cleverconnection.github.io/FinanceCRM/",
   },
   cache: {
     cacheLocation: "localStorage",
+  },
+  system: {
+    allowRedirectInIframe: true,
   },
 };

@@ -14,7 +14,10 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { PublicClientApplication } from "@azure/msal-browser";
+import {
+  InteractionRequiredAuthError,
+  PublicClientApplication,
+} from "@azure/msal-browser";
 import { msalConfig } from "./authConfig";
 import { Client } from "@microsoft/microsoft-graph-client";
 
@@ -36,24 +39,50 @@ const msalInstance = new PublicClientApplication(msalConfig);
 const graphScopes = ["User.Read", "Files.Read", "Files.Read.All"];
 
 // ======== CLIENTE MICROSOFT GRAPH ========
-async function getGraphClient() {
+async function acquireToken(scopes) {
   await msalInstance.initialize();
 
-  let account = msalInstance.getAllAccounts()[0];
+  const doLogin = async () => {
+    const loginResp = await msalInstance.loginPopup({
+      scopes,
+      prompt: "select_account",
+    });
+    msalInstance.setActiveAccount(loginResp.account);
+    return loginResp;
+  };
+
+  let account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
   if (!account) {
-    const login = await msalInstance.loginPopup({ scopes: graphScopes });
-    account = login.account;
+    const loginResp = await doLogin();
+    account = loginResp.account;
+    return { accessToken: loginResp.accessToken, account };
   }
 
-  const tokenResponse = await msalInstance.acquireTokenSilent({
-    scopes: graphScopes,
-    account,
-  });
+  msalInstance.setActiveAccount(account);
+
+  try {
+    const tokenResponse = await msalInstance.acquireTokenSilent({ scopes, account });
+    return { accessToken: tokenResponse.accessToken, account };
+  } catch (err) {
+    const needsInteraction =
+      err instanceof InteractionRequiredAuthError ||
+      err.errorCode === "login_required" ||
+      err.errorCode === "consent_required" ||
+      err.errorCode === "block_iframe_reload";
+
+    if (needsInteraction) {
+      const loginResp = await doLogin();
+      return { accessToken: loginResp.accessToken, account: loginResp.account };
+    }
+    throw err;
+  }
+}
+
+async function getGraphClient() {
+  const { accessToken } = await acquireToken(graphScopes);
 
   return Client.init({
-    authProvider: (done) => {
-      done(null, tokenResponse.accessToken);
-    },
+    authProvider: (done) => done(null, accessToken),
   });
 }
 
@@ -212,11 +241,8 @@ export default function FinanceCRM() {
         const userInfo = await getUserProfile(client);
         setUser(userInfo);
 
-        const tokenResponse = await msalInstance.acquireTokenSilent({
-          scopes: ["User.Read"],
-          account: msalInstance.getAllAccounts()[0],
-        });
-        await getUserPhoto(tokenResponse.accessToken, setUserPhoto);
+        const { accessToken } = await acquireToken(["User.Read"]);
+        await getUserPhoto(accessToken, setUserPhoto);
 
         localStorage.setItem("userName", userInfo.name);
         localStorage.setItem("userPhoto", userPhoto || "");
@@ -678,56 +704,117 @@ export default function FinanceCRM() {
       )}
 
       <div className="container" style={{ paddingTop: 16 }}>
-        {/* ALERTA DE ATRASO */}
-        {atrasados.length > 0 && (
-          <div
-            className="card"
-            aria-expanded={showAtrasados}
-            role="button"
-            tabIndex="0"
-            onClick={() => setShowAtrasados(!showAtrasados)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                setShowAtrasados(!showAtrasados);
-                e.preventDefault();
-              }
-            }}
-            style={{
-              background: "rgba(255, 50, 50, 0.15)",
-              border: "1px solid rgba(255, 50, 50, 0.4)",
-              color: "#fff",
-              marginBottom: "16px",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              maxHeight: "100px",
-              overflow: "hidden",
-            }}
-          >
-            <div className="alert-bar">
-              <span className="alert-title">⚠️ Pagamentos em atraso</span>
-
-              <span
-                className="alert-summary"
-                title={`Clientes em atraso: ${atrasados
-                  .map((r) => r.cliente)
-                  .join(", ")}`}
-              >
-                {atrasados.length} registro(s) —{" "}
-                {atrasados
-                  .map((r) => r.cliente)
-                  .slice(0, 3)
-                  .join(", ")}
-                {atrasados.length > 3 &&
-                  ` e mais ${atrasados.length - 3} cliente(s)`}
-              </span>
-
-              <span className={`alert-toggle ${showAtrasados ? "open" : ""}`}>
-                {showAtrasados ? "🔽 Ocultar" : "🔍 Ver detalhes"}
+        <div className="card hero">
+          <div>
+            <div className="eyebrow">Dashboard financeiro</div>
+            <div className="page-title">FinanceCRM</div>
+            <p className="page-subtitle">
+              Visão consolidada de notas fiscais e contratos com filtros rápidos e gráficos.
+            </p>
+            <div className="hero-tags">
+              <span className="tag">Registros: {rows.length}</span>
+              <span className="tag">Clientes: {clientes.length - 1}</span>
+              <span className="tag">
+                Período: {quickRange === "Todos" ? "Completo" : quickRange}
               </span>
             </div>
           </div>
-        )}
+        </div>
 
+        {/* ALERTAS RESUMO */}
+        <div className="alerts-row">
+          {atrasados.length > 0 && (
+            <div
+              className="card alert-card"
+              aria-expanded={showAtrasados}
+              role="button"
+              tabIndex="0"
+              onClick={() => setShowAtrasados(!showAtrasados)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setShowAtrasados(!showAtrasados);
+                  e.preventDefault();
+                }
+              }}
+              style={{
+                background: "linear-gradient(135deg, rgba(255, 68, 68, 0.18), rgba(120, 15, 35, 0.2))",
+                border: "1px solid rgba(255, 68, 68, 0.4)",
+                color: "#fff",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                maxHeight: "110px",
+                overflow: "hidden",
+              }}
+            >
+              <div className="alert-bar">
+                <span className="alert-title">⚠️ Pagamentos em atraso</span>
+
+                <span
+                  className="alert-summary"
+                  title={`Clientes em atraso: ${atrasados
+                    .map((r) => r.cliente)
+                    .join(", ")}`}
+                >
+                  {atrasados.length} registro(s) —{" "}
+                  {atrasados
+                    .map((r) => r.cliente)
+                    .slice(0, 2)
+                    .join(", ")}
+                  {atrasados.length > 2 &&
+                    ` e mais ${atrasados.length - 2} cliente(s)`}
+                </span>
+
+                <span className={`alert-toggle ${showAtrasados ? "open" : ""}`}>
+                  {showAtrasados ? "🔽 Ocultar" : "🔍 Ver detalhes"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {proximosPagamentos.length > 0 && (
+            <div
+              className="card alert-card"
+              role="button"
+              tabIndex="0"
+              onClick={() => setShowProximos((p) => !p)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setShowProximos((p) => !p);
+                  e.preventDefault();
+                }
+              }}
+              style={{
+                background: "linear-gradient(135deg, rgba(255, 200, 0, 0.18), rgba(120, 100, 20, 0.2))",
+                border: "1px solid rgba(255, 200, 0, 0.35)",
+                color: "#fff",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+              }}
+            >
+              <div className="alert-bar">
+                <span className="alert-title">
+                  📅 Próximos Pagamentos (mês atual)
+                </span>
+
+                <span className="alert-summary">
+                  {proximosPagamentos.length} registro(s) —{" "}
+                  {proximosPagamentos
+                    .map((r) => r.cliente)
+                    .slice(0, 2)
+                    .join(", ")}
+                  {proximosPagamentos.length > 2 &&
+                    ` e mais ${proximosPagamentos.length - 2} cliente(s)`}
+                </span>
+
+                <span className="alert-toggle">
+                  {showProximos ? "🔽 Ocultar" : "🔍 Ver detalhes"}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* DETALHE ATRASOS */}
         {showAtrasados && atrasados.length > 0 && (
           <div className="card" style={{ background: "rgba(255,255,255,0.05)" }}>
             <div
@@ -795,50 +882,6 @@ export default function FinanceCRM() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        )}
-
-        {/* ALERTA: PRÓXIMOS PAGAMENTOS (MÊS ATUAL) */}
-        {proximosPagamentos.length > 0 && (
-          <div
-            className="card"
-            role="button"
-            tabIndex="0"
-            onClick={() => setShowProximos((p) => !p)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                setShowProximos((p) => !p);
-                e.preventDefault();
-              }
-            }}
-            style={{
-              background: "rgba(255, 200, 0, 0.15)",
-              border: "1px solid rgba(255, 200, 0, 0.4)",
-              color: "#fff",
-              marginBottom: "16px",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <div className="alert-bar">
-              <span className="alert-title">
-                📅 Próximos Pagamentos (mês atual)
-              </span>
-
-              <span className="alert-summary">
-                {proximosPagamentos.length} registro(s) —{" "}
-                {proximosPagamentos
-                  .map((r) => r.cliente)
-                  .slice(0, 3)
-                  .join(", ")}
-                {proximosPagamentos.length > 3 &&
-                  ` e mais ${proximosPagamentos.length - 3} cliente(s)`}
-              </span>
-
-              <span className="alert-toggle">
-                {showProximos ? "🔽 Ocultar" : "🔍 Ver detalhes"}
-              </span>
             </div>
           </div>
         )}
