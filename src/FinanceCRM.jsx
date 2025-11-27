@@ -790,6 +790,7 @@ export default function FinanceCRM() {
     win.print();
   }
 
+
   // ======== MODO COMPACTO ========
   const [compact, setCompact] = useState(false);
 
@@ -1216,23 +1217,11 @@ export default function FinanceCRM() {
             <div className="kpi-sub">% Pago: {pctPago.toFixed(1)}%</div>
           </div>
           <div className="card kpi-card">
-            <div className="kpi-title">M/M Pago</div>
+            <div className="kpi-title">Maior pagador</div>
             <div className="kpi-value">
-              {momPaid == null ? "N/A" : `${momPaid >= 0 ? "+" : ""}${momPaid.toFixed(1)}%`}
+              {byCliente[0]?.cliente || "-"}
             </div>
-            <div className="kpi-sub">Base: últimos 2 meses</div>
-          </div>
-          <div className="card kpi-card">
-            <div className="kpi-title">Aging médio</div>
-            <div className="kpi-value">
-              {avgAging ? `${avgAging.toFixed(0)} dias` : "Sem pendências"}
-            </div>
-            <div className="kpi-sub">Apenas pendentes</div>
-          </div>
-          <div className="card kpi-card">
-            <div className="kpi-title">Top 5 concentração</div>
-            <div className="kpi-value">{portfolioShare.top5Share.toFixed(1)}%</div>
-            <div className="kpi-sub">do valor filtrado</div>
+            <div className="kpi-sub">Valor: {BRL(byCliente[0]?.valor || 0)}</div>
           </div>
         </div>
 

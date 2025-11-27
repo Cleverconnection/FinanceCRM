@@ -174,6 +174,7 @@ body {
   gap: 16px;
 }
 
+
 /* ========== CARD / KPIs ========== */
 
 .card {
@@ -538,8 +539,27 @@ tbody tr:hover {
   }
 
   /* KPIs: 2 colunas no mobile */
-  .grid-3 {
+  .grid-3,
+  .kpi-grid {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .kpi-card {
+    padding: 12px;
+  }
+
+  .kpi-title {
+    font-size: 0.78rem;
+  }
+
+  .kpi-value {
+    font-size: 1.25rem;
+  }
+
+  .kpi-sub {
+    font-size: 0.76rem;
   }
 
   /* filtros: 2 colunas no mobile também */
