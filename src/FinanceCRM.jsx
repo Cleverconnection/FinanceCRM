@@ -13,6 +13,8 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
 } from "recharts";
 import {
   InteractionRequiredAuthError,
@@ -40,6 +42,16 @@ const graphScopes = ["User.Read", "Files.Read", "Files.Read.All"];
 const isMobileDevice =
   typeof navigator !== "undefined" &&
   /Mobi|Android|iPhone|iPad|Mobile/.test(navigator.userAgent || "");
+const PAG_KEYS = ["data de pagamento", "data_pagamento", "pagamento", "data pagamento", "data"];
+const EMI_KEYS = [
+  "data criacao",
+  "data de emissao",
+  "data de vencimento",
+  "emissao",
+  "vencimento",
+  "data",
+];
+const SERV_KEYS = ["assunto", "descricao", "descrição", "serviço", "servico"];
 
 // ======== CLIENTE MICROSOFT GRAPH ========
 async function acquireToken(scopes) {
@@ -510,6 +522,113 @@ export default function FinanceCRM() {
       .sort((a, b) => a.__data - b.__data);
   }, [rows]);
 
+  // ======== INSIGHTS EXECUTIVOS ========
+  const pctPago = total > 0 ? (totalPago / total) * 100 : 0;
+
+  const monthlyTrend = useMemo(() => {
+    const base = new Date();
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+      months.push({ key, label, total: 0, pago: 0 });
+    }
+
+    filtered.forEach((r) => {
+      const d = getRowDate(r) || toDate(pick(r, EMI_KEYS));
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const bucket = months.find((m) => m.key === key);
+      if (!bucket) return;
+      const valor = Number(r.valor || 0);
+      bucket.total += valor;
+      if (String(r.status || "").toLowerCase() === "pago") {
+        bucket.pago += valor;
+      }
+    });
+
+    return months;
+  }, [filtered]);
+
+  const trendLast = monthlyTrend[monthlyTrend.length - 1] || { pago: 0, total: 0 };
+  const trendPrev = monthlyTrend[monthlyTrend.length - 2] || { pago: 0, total: 0 };
+  const momPaid =
+    trendPrev.pago === 0 ? null : ((trendLast.pago - trendPrev.pago) / trendPrev.pago) * 100;
+
+  const agingBuckets = useMemo(() => {
+    const buckets = {
+      futuro: 0,
+      dias15: 0,
+      dias30: 0,
+      dias60: 0,
+      dias60p: 0,
+    };
+    const hoje = new Date();
+
+    filtered.forEach((r) => {
+      const st = String(r.status || "").toLowerCase();
+      if (st === "pago") return;
+      const d = getRowDate(r) || toDate(pick(r, EMI_KEYS));
+      if (!d) return;
+      const diff = Math.floor((hoje - d) / 86400000);
+      const valor = Number(r.valor || 0);
+
+      if (diff <= 0) buckets.futuro += valor;
+      else if (diff <= 15) buckets.dias15 += valor;
+      else if (diff <= 30) buckets.dias30 += valor;
+      else if (diff <= 60) buckets.dias60 += valor;
+      else buckets.dias60p += valor;
+    });
+
+    const totalPendBucket =
+      buckets.futuro + buckets.dias15 + buckets.dias30 + buckets.dias60 + buckets.dias60p;
+
+    return {
+      chart: [
+        { name: "Futuro", valor: buckets.futuro },
+        { name: "0-15d", valor: buckets.dias15 },
+        { name: "16-30d", valor: buckets.dias30 },
+        { name: "31-60d", valor: buckets.dias60 },
+        { name: "60d+", valor: buckets.dias60p },
+      ],
+      totalPendBucket,
+    };
+  }, [filtered]);
+
+  const avgAging = useMemo(() => {
+    const hoje = new Date();
+    let sum = 0;
+    let count = 0;
+    filtered.forEach((r) => {
+      const st = String(r.status || "").toLowerCase();
+      if (st === "pago") return;
+      const d = getRowDate(r) || toDate(pick(r, EMI_KEYS));
+      if (!d) return;
+      const diff = Math.floor((hoje - d) / 86400000);
+      if (isFinite(diff) && diff >= 0) {
+        sum += diff;
+        count += 1;
+      }
+    });
+    return count === 0 ? 0 : sum / count;
+  }, [filtered]);
+
+  const proj30d = useMemo(() => {
+    const hoje = new Date();
+    const limite = new Date();
+    limite.setDate(hoje.getDate() + 30);
+    return filtered
+      .filter((r) => {
+        const st = String(r.status || "").toLowerCase();
+        if (st === "pago") return false;
+        const d = getRowDate(r);
+        if (!d) return false;
+        return d >= hoje && d <= limite;
+      })
+      .reduce((acc, r) => acc + Number(r.valor || 0), 0);
+  }, [filtered]);
+
   // ======== CHARTS ========
   const COLORS = [
     "#3b82f6",
@@ -543,6 +662,17 @@ export default function FinanceCRM() {
     return Array.from(m, ([status, valor]) => ({ name: status, value: valor }));
   }, [filtered]);
 
+  const portfolioShare = useMemo(() => {
+    const totalValor = filtered.reduce((a, b) => a + Number(b.valor || 0), 0);
+    const ranked = byCliente.map((c) => ({
+      ...c,
+      share: totalValor > 0 ? (c.valor / totalValor) * 100 : 0,
+    }));
+    const top5 = ranked.slice(0, 5);
+    const top5Share = top5.reduce((a, b) => a + b.share, 0);
+    return { ranked, top5Share, totalValor };
+  }, [filtered, byCliente]);
+
   // ======== EXPORT CSV ========
   function exportCSV() {
     const cols = ["data", "cliente", "assunto", "valor", "status"];
@@ -570,6 +700,94 @@ export default function FinanceCRM() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function exportExecutivePDF() {
+    const win = window.open("", "_blank", "width=900,height=1200");
+    if (!win) return;
+    const totalFmt = BRL(total);
+    const pagoFmt = BRL(totalPago);
+    const pendFmt = BRL(totalPend);
+    const projFmt = BRL(proj30d);
+    const topShareFmt = `${portfolioShare.top5Share.toFixed(1)}%`;
+    const momFmt =
+      momPaid == null ? "N/A" : `${momPaid >= 0 ? "+" : ""}${momPaid.toFixed(1)}%`;
+    const trendRows = monthlyTrend
+      .map(
+        (m) =>
+          `<tr><td>${m.label}</td><td>${BRL(m.total)}</td><td>${BRL(
+            m.pago
+          )}</td></tr>`
+      )
+      .join("");
+    const alerts = [
+      `${atrasados.length} atrasos`,
+      `${proximosPagamentos.length} próximos neste mês`,
+    ].join(" • ");
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Relatório Executivo - FinanceCRM</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; padding: 24px; color: #0f172a; }
+            h1 { margin: 0 0 8px; }
+            h2 { margin: 18px 0 8px; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #f9fafb; }
+            .muted { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+            th, td { border-bottom: 1px solid #e5e7eb; padding: 6px 4px; text-align: left; font-size: 13px; }
+            th { background: #eef2ff; }
+            .tag { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #e0f2fe; color: #0f172a; font-weight: 700; font-size: 12px; margin-right: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="muted">Relatório Executivo</div>
+          <h1>FinanceCRM</h1>
+          <div>${new Date().toLocaleString("pt-BR")}</div>
+
+          <div class="grid" style="margin-top:16px;">
+            <div class="card"><div class="muted">Recebido</div><div><strong>${pagoFmt}</strong></div></div>
+            <div class="card"><div class="muted">Pendente</div><div><strong>${pendFmt}</strong></div></div>
+            <div class="card"><div class="muted">% Pago</div><div><strong>${pctPago.toFixed(
+              1
+            )}%</strong></div></div>
+            <div class="card"><div class="muted">M/M Pago</div><div><strong>${momFmt}</strong></div></div>
+            <div class="card"><div class="muted">Projeção 30d</div><div><strong>${projFmt}</strong></div></div>
+            <div class="card"><div class="muted">Top 5 concentração</div><div><strong>${topShareFmt}</strong></div></div>
+          </div>
+
+          <h2>Alertas</h2>
+          <div class="tag">${alerts}</div>
+
+          <h2>Tendência (últimos 12 meses)</h2>
+          <table>
+            <thead><tr><th>Mês</th><th>Total</th><th>Pago</th></tr></thead>
+            <tbody>${trendRows}</tbody>
+          </table>
+
+          <h2>Top Clientes</h2>
+          <table>
+            <thead><tr><th>Cliente</th><th>Valor</th><th>%</th></tr></thead>
+            <tbody>
+              ${portfolioShare.ranked
+                .slice(0, 6)
+                .map(
+                  (c) =>
+                    `<tr><td>${c.cliente}</td><td>${BRL(c.valor)}</td><td>${c.share.toFixed(
+                      1
+                    )}%</td></tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
   }
 
   // ======== MODO COMPACTO ========
@@ -631,6 +849,9 @@ export default function FinanceCRM() {
               <button className="theme-btn" onClick={exportCSV}>
                 ⬇️ Exportar CSV
               </button>
+              <button className="theme-btn" onClick={exportExecutivePDF}>
+                📝 PDF Executivo
+              </button>
               <button
                 className="theme-btn"
                 onClick={() => setCompact((c) => !c)}
@@ -683,6 +904,16 @@ export default function FinanceCRM() {
               }}
             >
               ⬇️ Exportar CSV
+            </button>
+
+            <button
+              className="menu-item"
+              onClick={() => {
+                exportExecutivePDF();
+                setShowMobileMenu(false);
+              }}
+            >
+              📝 PDF Executivo
             </button>
 
             <button
@@ -965,25 +1196,43 @@ export default function FinanceCRM() {
           </div>
         )}
 
-        {/* KPIs – em duas colunas no mobile */}
-        <div className="grid grid-3">
-          <div className="card">
-            <div className="kpi-title">Total Recebido</div>
-            <div className="kpi-value" style={{ color: "var(--success)" }}>
-              {BRL(totalPago)}
+        {/* KPIs EXECUTIVOS */}
+        <div className="grid kpi-grid">
+          <div className="card kpi-card">
+            <div className="kpi-title">Recebido</div>
+            <div className="kpi-value">{BRL(totalPago)}</div>
+            <div className="kpi-sub">Último mês: {BRL(trendLast.pago || 0)}</div>
+          </div>
+          <div className="card kpi-card">
+            <div className="kpi-title">Pendente</div>
+            <div className="kpi-value">{BRL(totalPend)}</div>
+            <div className="kpi-sub">
+              Projeção 30d: <strong>{BRL(proj30d)}</strong>
             </div>
           </div>
-          <div className="card">
-            <div className="kpi-title">Total Pendente</div>
-            <div className="kpi-value" style={{ color: "var(--warning)" }}>
-              {BRL(totalPend)}
-            </div>
-          </div>
-          <div className="card">
+          <div className="card kpi-card">
             <div className="kpi-title">Total Geral</div>
-            <div className="kpi-value" style={{ color: "var(--primary)" }}>
-              {BRL(total)}
+            <div className="kpi-value">{BRL(total)}</div>
+            <div className="kpi-sub">% Pago: {pctPago.toFixed(1)}%</div>
+          </div>
+          <div className="card kpi-card">
+            <div className="kpi-title">M/M Pago</div>
+            <div className="kpi-value">
+              {momPaid == null ? "N/A" : `${momPaid >= 0 ? "+" : ""}${momPaid.toFixed(1)}%`}
             </div>
+            <div className="kpi-sub">Base: últimos 2 meses</div>
+          </div>
+          <div className="card kpi-card">
+            <div className="kpi-title">Aging médio</div>
+            <div className="kpi-value">
+              {avgAging ? `${avgAging.toFixed(0)} dias` : "Sem pendências"}
+            </div>
+            <div className="kpi-sub">Apenas pendentes</div>
+          </div>
+          <div className="card kpi-card">
+            <div className="kpi-title">Top 5 concentração</div>
+            <div className="kpi-value">{portfolioShare.top5Share.toFixed(1)}%</div>
+            <div className="kpi-sub">do valor filtrado</div>
           </div>
         </div>
 
@@ -1085,127 +1334,234 @@ export default function FinanceCRM() {
 
         {/* GRÁFICOS – empilhados no mobile */}
         {!compact && (
-          <div className="grid charts-grid">
-            <div className="card">
-              <div className="kpi-title" style={{ marginBottom: 8 }}>
-                Top 12 por Cliente
+          <>
+            <div className="grid charts-grid">
+              <div className="card">
+                <div className="kpi-title" style={{ marginBottom: 4 }}>
+                  Tendência 12 meses
+                </div>
+                <div className="kpi-sub" style={{ marginBottom: 8 }}>
+                  Pago M/M:{" "}
+                  {momPaid == null ? "N/A" : `${momPaid >= 0 ? "+" : ""}${momPaid.toFixed(1)}%`}
+                </div>
+                <div style={{ height: 320 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={monthlyTrend} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradPago" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.7} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.1} />
+                        </linearGradient>
+                        <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.6} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="var(--border)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: "#b0b8c1", fontSize: 11, fontWeight: 600 }}
+                        interval={1}
+                      />
+                      <YAxis
+                        tick={{ fill: "var(--muted)", fontSize: 12, fontWeight: 600 }}
+                        tickFormatter={(value) => BRL(value).replace("R$", "")}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(25,25,30,0.95)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 10,
+                          color: "#ffffff",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                        }}
+                        formatter={(value, name) => [BRL(value), name]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        name="Total"
+                        stroke="#3b82f6"
+                        fill="url(#gradTotal)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="pago"
+                        name="Pago"
+                        stroke="#10b981"
+                        fill="url(#gradPago)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={byCliente}
-                    margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#60a5fa" />
-                        <stop offset="100%" stopColor="#3b82f6" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="cliente"
-                      tick={{
-                        fill: "#b0b8c1",
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                      interval={0}
-                      angle={-20}
-                      height={80}
-                      tickMargin={10}
-                      dy={20}
-                    />
-                    <YAxis
-                      tick={{
-                        fill: "var(--muted)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                      domain={[0, (dataMax) => Math.ceil(dataMax * 1.1)]}
-                      tickFormatter={(value) =>
-                        value.toLocaleString("pt-BR")
-                      }
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(25,25,30,0.95)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        color: "#ffffff",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
-                      }}
-                      itemStyle={{ color: "#fff", fontWeight: 500 }}
-                      labelStyle={{
-                        color: "#00aaff",
-                        fontWeight: 600,
-                      }}
-                      formatter={(value) => BRL(value)}
-                    />
-                    <Bar
-                      dataKey="valor"
-                      radius={[8, 8, 0, 0]}
-                      cursor="pointer"
-                      onClick={(data) =>
-                        setCliente(
-                          cliente === data.cliente ? "Todos" : data.cliente
-                        )
-                      }
-                    >
-                      {byCliente.map((entry, i) => (
-                        <Cell
-                          key={i}
-                          fill="url(#barGrad)"
-                          stroke={
-                            cliente === entry.cliente ? "#93c5fd" : "none"
-                          }
-                          strokeWidth={cliente === entry.cliente ? 2 : 0}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+
+              <div className="card">
+                <div className="kpi-title" style={{ marginBottom: 4 }}>
+                  Aging / Risco
+                </div>
+                <div className="kpi-sub" style={{ marginBottom: 8 }}>
+                  Pendências: {BRL(agingBuckets.totalPendBucket)}
+                </div>
+                <div style={{ height: 320 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={agingBuckets.chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--border)" vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: "#b0b8c1", fontWeight: 600, fontSize: 12 }}
+                      />
+                      <YAxis
+                        tick={{ fill: "var(--muted)", fontSize: 12, fontWeight: 600 }}
+                        tickFormatter={(value) => BRL(value).replace("R$", "")}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(25,25,30,0.95)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 10,
+                          color: "#ffffff",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                        }}
+                        formatter={(value) => BRL(value)}
+                      />
+                      <Bar dataKey="valor" radius={[8, 8, 0, 0]}>
+                        {agingBuckets.chart.map((entry, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
-            <div className="card">
-              <div className="kpi-title" style={{ marginBottom: 8 }}>
-                Por Status
-              </div>
-              <div style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={byStatus}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={110}
-                      innerRadius={55}
-                      stroke="none"
+            <div className="grid charts-grid">
+              <div className="card">
+                <div className="kpi-title" style={{ marginBottom: 8 }}>
+                  Top 12 por Cliente
+                </div>
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={byCliente}
+                      margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
                     >
-                      {byStatus.map((e, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(15,15,18,0.98)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        color: "#fff",
-                        borderRadius: 8,
-                        padding: "8px 12px",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                      }}
-                      itemStyle={{ color: "#fff" }}
-                      labelStyle={{ color: "#ccc" }}
-                      formatter={(value, name) => [BRL(value), name]}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                      <defs>
+                        <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#60a5fa" />
+                          <stop offset="100%" stopColor="#3b82f6" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="var(--border)" vertical={false} />
+                      <XAxis
+                        dataKey="cliente"
+                        tick={{
+                          fill: "#b0b8c1",
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                        interval={0}
+                        angle={-20}
+                        height={80}
+                        tickMargin={10}
+                        dy={20}
+                      />
+                      <YAxis
+                        tick={{
+                          fill: "var(--muted)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                        domain={[0, (dataMax) => Math.ceil(dataMax * 1.1)]}
+                        tickFormatter={(value) =>
+                          value.toLocaleString("pt-BR")
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(25,25,30,0.95)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 10,
+                          color: "#ffffff",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                        }}
+                        itemStyle={{ color: "#fff", fontWeight: 500 }}
+                        labelStyle={{
+                          color: "#00aaff",
+                          fontWeight: 600,
+                        }}
+                        formatter={(value) => BRL(value)}
+                      />
+                      <Bar
+                        dataKey="valor"
+                        radius={[8, 8, 0, 0]}
+                        cursor="pointer"
+                        onClick={(data) =>
+                          setCliente(
+                            cliente === data.cliente ? "Todos" : data.cliente
+                          )
+                        }
+                      >
+                        {byCliente.map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill="url(#barGrad)"
+                            stroke={
+                              cliente === entry.cliente ? "#93c5fd" : "none"
+                            }
+                            strokeWidth={cliente === entry.cliente ? 2 : 0}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="kpi-title" style={{ marginBottom: 8 }}>
+                  Por Status
+                </div>
+                <div style={{ height: 300 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={byStatus}
+                        dataKey="value"
+                        nameKey="name"
+                        outerRadius={110}
+                        innerRadius={55}
+                        stroke="none"
+                      >
+                        {byStatus.map((e, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(15,15,18,0.98)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                        }}
+                        itemStyle={{ color: "#fff" }}
+                        labelStyle={{ color: "#ccc" }}
+                        formatter={(value, name) => [BRL(value), name]}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* TABELA */}
