@@ -836,13 +836,6 @@ tbody tr:hover {
     line-height: 1.1;
   }
 
-  .card table th:nth-child(4),
-  .card table td:nth-child(4),
-  .card table th:nth-child(5),
-  .card table td:nth-child(5) {
-    display: none;
-  }
-
   .alert-bar {
     flex-direction: column;
     align-items: flex-start;
