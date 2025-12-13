@@ -24,8 +24,34 @@ import { msalConfig } from "./authConfig";
 import { Client } from "@microsoft/microsoft-graph-client";
 
 // ======== FORMATADORES ========
+const parseValor = (value) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const hasComma = trimmed.includes(",");
+    let normalized = trimmed.replace(/[^\d.,-]/g, "");
+
+    if (hasComma) {
+      normalized = normalized.replace(/\./g, "").replace(",", ".");
+    } else {
+      const parts = normalized.split(".");
+      if (parts.length > 2) {
+        const last = parts.pop();
+        normalized = `${parts.join("")}.${last}`;
+      }
+    }
+
+    const num = Number(normalized);
+    return Number.isFinite(num) ? num : 0;
+  }
+
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
 const BRL = (n) =>
-  Number(n || 0).toLocaleString("pt-BR", {
+  parseValor(n).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
@@ -42,6 +68,8 @@ const graphScopes = ["User.Read", "Files.Read", "Files.Read.All"];
 const isMobileDevice =
   typeof navigator !== "undefined" &&
   /Mobi|Android|iPhone|iPad|Mobile/.test(navigator.userAgent || "");
+const msalInitPromise = msalInstance.initialize();
+let loginPromise = null;
 const PAG_KEYS = ["data de pagamento", "data_pagamento", "pagamento", "data pagamento", "data"];
 const EMI_KEYS = [
   "data criacao",
@@ -55,7 +83,7 @@ const SERV_KEYS = ["assunto", "descricao", "descrição", "serviço", "servico"]
 
 // ======== CLIENTE MICROSOFT GRAPH ========
 async function acquireToken(scopes) {
-  await msalInstance.initialize();
+  await msalInitPromise;
 
   // Processa retornos de loginRedirect (especialmente em mobile)
   const redirectResult = await msalInstance.handleRedirectPromise();
@@ -65,19 +93,30 @@ async function acquireToken(scopes) {
   }
 
   const doLogin = async () => {
-    if (isMobileDevice) {
-      await msalInstance.loginRedirect({
+    if (loginPromise) return loginPromise;
+
+    const p = (async () => {
+      if (isMobileDevice) {
+        await msalInstance.loginRedirect({
+          scopes,
+          prompt: "select_account",
+        });
+        return new Promise(() => {}); // fluxo continua no redirect
+      }
+      const loginResp = await msalInstance.loginPopup({
         scopes,
         prompt: "select_account",
       });
-      return new Promise(() => {}); // fluxo continua no redirect
+      msalInstance.setActiveAccount(loginResp.account);
+      return loginResp;
+    })();
+
+    loginPromise = p;
+    try {
+      return await p;
+    } finally {
+      loginPromise = null;
     }
-    const loginResp = await msalInstance.loginPopup({
-      scopes,
-      prompt: "select_account",
-    });
-    msalInstance.setActiveAccount(loginResp.account);
-    return loginResp;
   };
 
   let account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
@@ -99,6 +138,11 @@ async function acquireToken(scopes) {
       err.errorCode === "consent_required" ||
       err.errorCode === "block_iframe_reload" ||
       err.errorCode === "no_tokens_found";
+
+    if (err.errorCode === "interaction_in_progress" && loginPromise) {
+      const loginResp = await loginPromise.catch(() => null);
+      return { accessToken: loginResp?.accessToken, account: loginResp?.account };
+    }
 
     if (needsInteraction) {
       const loginResp = await doLogin();
@@ -446,10 +490,10 @@ export default function FinanceCRM() {
   }, [rows, q, cliente, status, ano, mes, quickRange]);
 
   // ======== KPIs ========
-  const total = filtered.reduce((a, b) => a + Number(b.valor || 0), 0);
+  const total = filtered.reduce((a, b) => a + parseValor(b.valor), 0);
   const totalPago = filtered
     .filter((r) => (r.status || "").toLowerCase() === "pago")
-    .reduce((a, b) => a + Number(b.valor || 0), 0);
+    .reduce((a, b) => a + parseValor(b.valor), 0);
   const totalPend = total - totalPago;
 
   // ======== ALERTAS DE ATRASO ========
@@ -548,7 +592,7 @@ export default function FinanceCRM() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const bucket = months.find((m) => m.key === key);
       if (!bucket) return;
-      const valor = Number(r.valor || 0);
+      const valor = parseValor(r.valor);
       bucket.total += valor;
       if (String(r.status || "").toLowerCase() === "pago") {
         bucket.pago += valor;
@@ -579,7 +623,7 @@ export default function FinanceCRM() {
       const d = getRowDate(r) || toDate(pick(r, EMI_KEYS));
       if (!d) return;
       const diff = Math.floor((hoje - d) / 86400000);
-      const valor = Number(r.valor || 0);
+      const valor = parseValor(r.valor);
 
       if (diff <= 0) buckets.futuro += valor;
       else if (diff <= 15) buckets.dias15 += valor;
@@ -633,7 +677,7 @@ export default function FinanceCRM() {
         if (!d) return false;
         return d >= hoje && d <= limite;
       })
-      .reduce((acc, r) => acc + Number(r.valor || 0), 0);
+      .reduce((acc, r) => acc + parseValor(r.valor), 0);
   }, [filtered]);
 
   // ======== CHARTS ========
@@ -651,7 +695,7 @@ export default function FinanceCRM() {
   const byCliente = useMemo(() => {
     const m = new Map();
     filtered.forEach((r) =>
-      m.set(r.cliente, (m.get(r.cliente) || 0) + Number(r.valor || 0))
+      m.set(r.cliente, (m.get(r.cliente) || 0) + parseValor(r.valor))
     );
     return Array.from(m, ([cliente, valor]) => ({ cliente, valor }))
       .sort((a, b) => b.valor - a.valor)
@@ -663,14 +707,14 @@ export default function FinanceCRM() {
     filtered.forEach((r) =>
       m.set(
         r.status || "Indefinido",
-        (m.get(r.status || "Indefinido") || 0) + Number(r.valor || 0)
+        (m.get(r.status || "Indefinido") || 0) + parseValor(r.valor)
       )
     );
     return Array.from(m, ([status, valor]) => ({ name: status, value: valor }));
   }, [filtered]);
 
   const portfolioShare = useMemo(() => {
-    const totalValor = filtered.reduce((a, b) => a + Number(b.valor || 0), 0);
+    const totalValor = filtered.reduce((a, b) => a + parseValor(b.valor), 0);
     const ranked = byCliente.map((c) => ({
       ...c,
       share: totalValor > 0 ? (c.valor / totalValor) * 100 : 0,
